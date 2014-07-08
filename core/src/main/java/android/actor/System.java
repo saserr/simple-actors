@@ -246,7 +246,7 @@ public class System {
 
             @Override
             public void stop() {
-                mReference.onStop();
+                mSystem.onStop(Registration.this);
             }
         };
 

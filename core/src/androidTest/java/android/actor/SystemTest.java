@@ -253,6 +253,18 @@ public class SystemTest extends TestCase {
         } catch (final UnsupportedOperationException ignored) {/* expected */}
     }
 
+    public final void testPauseAfterStop() {
+        assertThat("system is started", mSystem.isStarted(), is(true));
+        assertThat("system is paused", mSystem.isPaused(), is(false));
+        assertThat("system is stopped", mSystem.isStopped(), is(false));
+
+        mSystem.stop(false);
+        try {
+            mSystem.pause();
+            fail("pausing of system did not throw UnsupportedOperationException");
+        } catch (final UnsupportedOperationException ignored) {/* expected */}
+    }
+
     public final void testStopAfterPauseWithPendingMessages() {
         assertThat("system is started", mSystem.isStarted(), is(true));
         assertThat("system is paused", mSystem.isPaused(), is(false));
@@ -271,12 +283,12 @@ public class SystemTest extends TestCase {
         assertThat("system is stopped", mSystem.isStopped(), is(true));
 
         assertThat("actor is stopped", reference.isStopped(), is(true));
-        final List<Pair<System, Integer>> tells = actor.getTells();
-        assertThat("number of actor on message invocations", tells.size(), is(1));
+        final List<Pair<System, Integer>> onMessages = actor.getOnMessages();
+        assertThat("number of actor on message invocations", onMessages.size(), is(1));
 
-        final Pair<System, Integer> tell = tells.get(0);
-        assertThat("actor received system", tell.first, is(mSystem));
-        assertThat("actor received message", tell.second, is(expected));
+        final Pair<System, Integer> onMessage = onMessages.get(0);
+        assertThat("actor received system", onMessage.first, is(mSystem));
+        assertThat("actor received message", onMessage.second, is(expected));
     }
 
     public final void testImmediateStop() {
@@ -362,6 +374,6 @@ public class SystemTest extends TestCase {
         assertThat("system is stopped", mSystem.isStopped(), is(true));
 
         assertThat("actor is stopped", reference.isStopped(), is(true));
-        assertThat("actor received messages", actor.getTells(), is(empty()));
+        assertThat("actor received messages", actor.getOnMessages(), is(empty()));
     }
 }

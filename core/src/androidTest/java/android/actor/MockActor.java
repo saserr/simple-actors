@@ -28,7 +28,7 @@ public class MockActor<M> extends Actor<M> {
 
     private final List<Pair<System, Reference<M>>> mPostStarts = new ArrayList<>(1);
     private final List<System> mPreStops = new ArrayList<>(1);
-    private final List<Pair<System, M>> mTells = new ArrayList<>(1);
+    private final List<Pair<System, M>> mOnMessages = new ArrayList<>(1);
 
     public MockActor() {
         super();
@@ -45,8 +45,8 @@ public class MockActor<M> extends Actor<M> {
     }
 
     @NonNull
-    public final List<Pair<System, M>> getTells() {
-        return unmodifiableList(mTells);
+    public final List<Pair<System, M>> getOnMessages() {
+        return unmodifiableList(mOnMessages);
     }
 
     @Override
@@ -61,6 +61,6 @@ public class MockActor<M> extends Actor<M> {
 
     @Override
     protected final void onMessage(@NonNull final System system, @NonNull final M message) {
-        mTells.add(Pair.create(system, message));
+        mOnMessages.add(Pair.create(system, message));
     }
 }

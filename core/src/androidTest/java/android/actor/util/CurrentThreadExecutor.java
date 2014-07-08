@@ -21,8 +21,8 @@ import android.os.Looper;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -31,7 +31,7 @@ public class CurrentThreadExecutor implements Executor {
     private final Looper mLooper = Looper.myLooper();
     private final Lock mLock = new ReentrantLock();
     @NonNull
-    private final List<Task> mTasks = new ArrayList<>();
+    private final Collection<Task> mTasks = new HashSet<>();
 
     private boolean mStopped = false;
 

@@ -32,10 +32,6 @@ public class Dispatcher {
         mLoop = new Loop(callback);
     }
 
-    public final boolean isRunning() {
-        return mLoop.isRunning();
-    }
-
     public final void start() {
         new Thread(mLoop).start();
     }
@@ -79,10 +75,6 @@ public class Dispatcher {
             } else {
                 current.quit();
             }
-        }
-
-        public final boolean isRunning() {
-            return mLooper.get() != null;
         }
 
         public final void stop() {

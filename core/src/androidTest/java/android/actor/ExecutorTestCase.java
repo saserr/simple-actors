@@ -24,6 +24,7 @@ import junit.framework.TestCase;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public abstract class ExecutorTestCase extends TestCase {
 
@@ -55,6 +56,29 @@ public abstract class ExecutorTestCase extends TestCase {
         assertThat("number of the task stop invocations", task.getStops(0), is(0));
     }
 
+    public final void testDoubleSubmitTask() throws InterruptedException {
+        final SpyTask task = new SpyTask();
+        assertThat("executor submit", mExecutor.submit(task), is(notNullValue()));
+        assertThat("executor submit", mExecutor.submit(task), is(nullValue()));
+        assertThat("number of the task attach invocations", task.getAttachments(1), is(1));
+        assertThat("number of the task detach invocations", task.getDetachments(0), is(0));
+        assertThat("number of the task stop invocations", task.getStops(0), is(0));
+    }
+
+    public final void testSubmitTaskThatFailsToAttach() {
+        final DummyTask task = new DummyTask(false, false);
+        assertThat("executor submit", mExecutor.submit(task), is(nullValue()));
+    }
+
+    public final void testStopTaskThatFailsToDetach() {
+        final DummyTask task = new DummyTask(true, false);
+        final Executor.Submission submission = mExecutor.submit(task);
+        assertThat("executor submit", submission, is(notNullValue()));
+
+        assert submission != null;
+        assertThat("submission stop", submission.stop(), is(false));
+    }
+
     public final void testStopSubmission() throws InterruptedException {
         final SpyTask task = new SpyTask();
         final Executor.Submission submission = mExecutor.submit(task);
@@ -62,7 +86,7 @@ public abstract class ExecutorTestCase extends TestCase {
         assertThat("number of the task attach invocations", task.getAttachments(1), is(1));
 
         assert submission != null;
-        submission.stop();
+        assertThat("submission stop", submission.stop(), is(true));
         assertThat("number of the task attach invocations", task.getAttachments(1), is(1));
         assertThat("number of the task detach invocations", task.getDetachments(1), is(1));
         assertThat("number of the task stop invocations", task.getStops(0), is(0));
@@ -75,10 +99,10 @@ public abstract class ExecutorTestCase extends TestCase {
         assertThat("number of the task attach invocations", task.getAttachments(1), is(1));
 
         assert submission != null;
-        submission.stop();
+        assertThat("submission stop", submission.stop(), is(true));
         assertThat("number of the task detach invocations", task.getDetachments(1), is(1));
 
-        submission.stop();
+        assertThat("submission stop", submission.stop(), is(true));
         assertThat("number of the task attach invocations", task.getAttachments(1), is(1));
         assertThat("number of the task detach invocations", task.getDetachments(1), is(1));
         assertThat("number of the task stop invocations", task.getStops(0), is(0));
@@ -116,7 +140,7 @@ public abstract class ExecutorTestCase extends TestCase {
         assertThat("number of the task attach invocations", task.getAttachments(1), is(1));
 
         assert submission != null;
-        submission.stop();
+        assertThat("submission stop", submission.stop(), is(true));
         assertThat("number of the task detach invocations", task.getDetachments(1), is(1));
 
         mExecutor.stop();
@@ -136,6 +160,33 @@ public abstract class ExecutorTestCase extends TestCase {
         assertThat("number of the task attach invocations", task.getAttachments(0), is(0));
         assertThat("number of the task detach invocations", task.getDetachments(0), is(0));
         assertThat("number of the task stop invocations", task.getStops(0), is(0));
+    }
+
+    private static class DummyTask implements Executor.Task {
+
+        private final boolean mAttach;
+        private final boolean mDetach;
+
+        private DummyTask(final boolean attach, final boolean detach) {
+            super();
+
+            mAttach = attach;
+            mDetach = detach;
+        }
+
+        @Override
+        public final boolean attach(@NonNull final Looper looper) {
+            return mAttach;
+        }
+
+        @Override
+        public final boolean detach() {
+            return mDetach;
+        }
+
+        @Override
+        public final void stop() {
+        }
     }
 
     private static class SpyTask implements Executor.Task {

@@ -2,6 +2,7 @@
   <dictionary name="saserr">
     <words>
       <w>hamcrest</w>
+      <w>loopers</w>
     </words>
   </dictionary>
 </component>

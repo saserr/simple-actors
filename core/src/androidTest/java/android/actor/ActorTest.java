@@ -29,19 +29,24 @@ import static org.hamcrest.Matchers.is;
 
 public class ActorTest extends TestCase {
 
+    private Executor mExecutor;
     private System mSystem;
 
     @Override
     public final void setUp() throws Exception {
         super.setUp();
 
-        mSystem = new System(new CurrentThreadExecutor());
+        mExecutor = new CurrentThreadExecutor();
+        mSystem = new System(mExecutor);
     }
 
     @Override
     public final void tearDown() throws Exception {
         mSystem.stop(true);
         mSystem = null;
+
+        mExecutor.stop();
+        mExecutor = null;
 
         super.tearDown();
     }
@@ -65,12 +70,12 @@ public class ActorTest extends TestCase {
         final int expected = isA(RandomInteger);
         assertThat("actor tell", reference.tell(expected), is(true));
 
-        final List<Pair<System, Integer>> tells = actor.getTells();
-        assertThat("number of actor on message invocations", tells.size(), is(1));
+        final List<Pair<System, Integer>> onMessages = actor.getOnMessages();
+        assertThat("number of the actor on message invocations", onMessages.size(), is(1));
 
-        final Pair<System, Integer> tell = tells.get(0);
-        assertThat("actor received system", tell.first, is(mSystem));
-        assertThat("actor received message", tell.second, is(expected));
+        final Pair<System, Integer> onMessage = onMessages.get(0);
+        assertThat("actor received system", onMessage.first, is(mSystem));
+        assertThat("actor received message", onMessage.second, is(expected));
     }
 
     public final void testPause() {
@@ -96,7 +101,7 @@ public class ActorTest extends TestCase {
 
         assertThat("actor pause", reference.pause(), is(true));
         assertThat("actor tell", reference.tell(a(RandomInteger)), is(true));
-        assertThat("actor received messages", actor.getTells(), is(empty()));
+        assertThat("actor received messages", actor.getOnMessages(), is(empty()));
     }
 
     public final void testTellAfterStart() {
@@ -108,12 +113,12 @@ public class ActorTest extends TestCase {
         final int expected = isA(RandomInteger);
         assertThat("actor tell", reference.tell(expected), is(true));
 
-        final List<Pair<System, Integer>> tells = actor.getTells();
-        assertThat("number of actor on message invocations", tells.size(), is(1));
+        final List<Pair<System, Integer>> onMessages = actor.getOnMessages();
+        assertThat("number of the actor on message invocations", onMessages.size(), is(1));
 
-        final Pair<System, Integer> tell = tells.get(0);
-        assertThat("actor received system", tell.first, is(mSystem));
-        assertThat("actor received message", tell.second, is(expected));
+        final Pair<System, Integer> onMessage = onMessages.get(0);
+        assertThat("actor received system", onMessage.first, is(mSystem));
+        assertThat("actor received message", onMessage.second, is(expected));
     }
 
     public final void testTellDuringPauseIsReceivedAfterStart() {
@@ -123,15 +128,15 @@ public class ActorTest extends TestCase {
         mSystem.pause();
         final int expected = isA(RandomInteger);
         assertThat("actor tell", reference.tell(expected), is(true));
-        assertThat("actor received messages", actor.getTells(), is(empty()));
+        assertThat("actor received messages", actor.getOnMessages(), is(empty()));
 
         mSystem.start();
-        final List<Pair<System, Integer>> tells = actor.getTells();
-        assertThat("number of actor on message invocations", tells.size(), is(1));
+        final List<Pair<System, Integer>> onMessages = actor.getOnMessages();
+        assertThat("number of the actor on message invocations", onMessages.size(), is(1));
 
-        final Pair<System, Integer> tell = tells.get(0);
-        assertThat("actor received system", tell.first, is(mSystem));
-        assertThat("actor received message", tell.second, is(expected));
+        final Pair<System, Integer> onMessage = onMessages.get(0);
+        assertThat("actor received system", onMessage.first, is(mSystem));
+        assertThat("actor received message", onMessage.second, is(expected));
     }
 
     public final void testStop() {
@@ -157,8 +162,27 @@ public class ActorTest extends TestCase {
         final MockActor<Integer> actor = new MockActor<>();
         final Reference<Integer> reference = mSystem.with(isA(RandomString), actor);
 
-        assertThat("1st actor stop", reference.stop(), is(true));
-        assertThat("2nd actor stop", reference.stop(), is(true));
+        assertThat("actor 1st stop", reference.stop(), is(true));
+        assertThat("actor 2nd stop", reference.stop(), is(true));
+        assertThat("actor is stopped", reference.isStopped(), is(true));
+
+        final List<Pair<System, Reference<Integer>>> postStarts = actor.getPostStarts();
+        assertThat("number of actor post start invocations", postStarts.size(), is(1));
+
+        final Pair<System, Reference<Integer>> postStart = postStarts.get(0);
+        assertThat("actor post start system", postStart.first, is(mSystem));
+        assertThat("actor post start reference", postStart.second, is(reference));
+
+        final List<System> preStops = actor.getPreStops();
+        assertThat("number of actor pre stop invocations", preStops.size(), is(1));
+        assertThat("actor pre stop system", preStops.get(0), is(mSystem));
+    }
+
+    public final void testExecutorStop() {
+        final MockActor<Integer> actor = new MockActor<>();
+        final Reference<Integer> reference = mSystem.with(isA(RandomString), actor);
+
+        mExecutor.stop();
         assertThat("actor is stopped", reference.isStopped(), is(true));
 
         final List<Pair<System, Reference<Integer>>> postStarts = actor.getPostStarts();
@@ -194,7 +218,7 @@ public class ActorTest extends TestCase {
         assertThat("actor is stopped", reference.isStopped(), is(true));
     }
 
-    public final void testTellAfterPauseAndBeforeStopIsReceived() {
+    public final void testTellDuringPauseIsReceivedBeforeStop() {
         final MockActor<Integer> actor = new MockActor<>();
         final Reference<Integer> reference = mSystem.with(isA(RandomString), actor);
 
@@ -204,12 +228,12 @@ public class ActorTest extends TestCase {
         assertThat("actor stop", reference.stop(), is(true));
         assertThat("actor is stopped", reference.isStopped(), is(true));
 
-        final List<Pair<System, Integer>> tells = actor.getTells();
-        assertThat("number of actor on message invocations", tells.size(), is(1));
+        final List<Pair<System, Integer>> onMessages = actor.getOnMessages();
+        assertThat("number of the actor on message invocations", onMessages.size(), is(1));
 
-        final Pair<System, Integer> tell = tells.get(0);
-        assertThat("actor received system", tell.first, is(mSystem));
-        assertThat("actor received message", tell.second, is(expected));
+        final Pair<System, Integer> onMessage = onMessages.get(0);
+        assertThat("actor received system", onMessage.first, is(mSystem));
+        assertThat("actor received message", onMessage.second, is(expected));
     }
 
     public final void testTellAfterStop() {

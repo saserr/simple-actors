@@ -17,6 +17,7 @@
 package android.actor;
 
 import android.os.Handler;
+import android.os.Message;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
@@ -24,9 +25,11 @@ import org.jetbrains.annotations.NonNls;
 
 import java.util.LinkedList;
 import java.util.Queue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+import static android.os.SystemClock.uptimeMillis;
 import static java.lang.Thread.currentThread;
 
 public class Reference<M> {
@@ -91,6 +94,27 @@ public class Reference<M> {
             success = (mHandler == null) ?
                     mPendingMessages.offer(new User.PendingMessage<>(message)) :
                     User.send(mHandler, mDirectCall, message);
+        } finally {
+            mLock.unlock();
+        }
+
+        return success;
+    }
+
+    public final boolean tell(@NonNull final M message,
+                              final int delay,
+                              @NonNull final TimeUnit unit) {
+        final boolean success;
+
+        mLock.lock();
+        try {
+            if (mStopped) {
+                throw new UnsupportedOperationException(mActorStopped);
+            }
+
+            success = (mHandler == null) ?
+                    mPendingMessages.offer(new User.PendingMessage<>(message, delay, unit)) :
+                    User.send(mHandler, message, unit.toMillis(delay));
         } finally {
             mLock.unlock();
         }
@@ -273,7 +297,7 @@ public class Reference<M> {
 
     private static final class System {
 
-        private static boolean send(@NonNull final Handler handler, final int message) {
+        public static boolean send(@NonNull final Handler handler, final int message) {
             return handler.sendMessage(handler.obtainMessage(SYSTEM_MESSAGE, message, 0));
         }
 
@@ -314,38 +338,57 @@ public class Reference<M> {
 
     private static final class User {
 
-        private static <M> boolean send(@NonNull final Handler handler, @NonNull final M message) {
-            return handler.sendMessage(handler.obtainMessage(USER_MESSAGE, message));
+        private static final long NO_DELAY = 0;
+
+        public static <M> boolean send(@NonNull final Handler handler,
+                                       @NonNull final M message,
+                                       final long delay) {
+            final Message msg = handler.obtainMessage(USER_MESSAGE, message);
+            return (delay > 0) ? handler.sendMessageDelayed(msg, delay) : handler.sendMessage(msg);
         }
 
         public static <M> boolean send(@NonNull final Handler handler,
                                        @Nullable final DirectCall<M> direct,
                                        @NonNull final M message) {
             return (!hasUndeliveredMessages(handler) && (direct != null) && isCurrentThread(handler)) ?
-                    (direct.handleUserMessage(message) || send(handler, message)) :
-                    send(handler, message);
+                    (direct.handleUserMessage(message) || send(handler, message, NO_DELAY)) :
+                    send(handler, message, NO_DELAY);
         }
 
         public static class PendingMessage<M> implements Reference.PendingMessage<M> {
 
             @NonNull
             private final M mMessage;
+            private final long mAtTime;
+
+            public PendingMessage(@NonNull final M message,
+                                  final long delay,
+                                  @NonNull final TimeUnit unit) {
+                super();
+
+                mMessage = message;
+                mAtTime = uptimeMillis() + unit.toMillis(delay);
+            }
 
             public PendingMessage(@NonNull final M message) {
                 super();
 
                 mMessage = message;
+                mAtTime = 0;
             }
 
             @Override
             public final boolean send(@NonNull final DirectCall<M> direct) {
-                return direct.handleUserMessage(mMessage);
+                return (mAtTime <= uptimeMillis()) && direct.handleUserMessage(mMessage);
             }
 
             @Override
             public final boolean send(@NonNull final Handler handler,
                                       @Nullable final DirectCall<M> direct) {
-                return User.send(handler, direct, mMessage);
+                final long now = uptimeMillis();
+                return (mAtTime <= now) ?
+                        User.send(handler, direct, mMessage) :
+                        User.send(handler, mMessage, mAtTime - now);
             }
         }
 
