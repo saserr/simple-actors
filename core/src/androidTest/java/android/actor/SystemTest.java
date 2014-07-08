@@ -18,7 +18,6 @@ package android.actor;
 
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-import android.util.Pair;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -288,12 +287,9 @@ public class SystemTest extends TestCase {
         assertThat("system is stopped", mSystem.isStopped(), is(true));
 
         assertThat("actor is stopped", reference.isStopped(), is(true));
-        final List<Pair<System, Integer>> onMessages = actor.getOnMessages();
-        assertThat("number of actor on message invocations", onMessages.size(), is(1));
-
-        final Pair<System, Integer> onMessage = onMessages.get(0);
-        assertThat("actor received system", onMessage.first, is(mSystem));
-        assertThat("actor received message", onMessage.second, is(expected));
+        final List<Integer> messages = actor.getMessages();
+        assertThat("number of actor received messages", messages.size(), is(1));
+        assertThat("actor received message", messages.get(0), is(expected));
     }
 
     public final void testImmediateStop() {
@@ -379,7 +375,7 @@ public class SystemTest extends TestCase {
         assertThat("system is stopped", mSystem.isStopped(), is(true));
 
         assertThat("actor is stopped", reference.isStopped(), is(true));
-        assertThat("actor received messages", actor.getOnMessages(), is(empty()));
+        assertThat("actor received messages", actor.getMessages(), is(empty()));
     }
 
     private static class MockExecutor implements Executor {
@@ -388,7 +384,7 @@ public class SystemTest extends TestCase {
 
         private boolean mStopped = false;
 
-        public MockExecutor() {
+        private MockExecutor() {
             super();
         }
 

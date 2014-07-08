@@ -20,10 +20,10 @@ import android.support.annotation.NonNull;
 
 public abstract class Actor<M> {
 
-    protected abstract void onMessage(@NonNull final System system, @NonNull final M m);
+    protected abstract void onMessage(@NonNull final M m);
 
     protected void postStart(@NonNull final System system,
                              @NonNull final Reference<M> self) {/* do nothing */}
 
-    protected void preStop(@NonNull final System system) {/* do nothing */}
+    protected void preStop() {/* do nothing */}
 }

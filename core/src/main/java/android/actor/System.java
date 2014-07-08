@@ -301,7 +301,7 @@ public class System {
             final boolean success;
 
             if (immediately) {
-                mActor.preStop(mSystem);
+                mActor.preStop();
                 mReference.onStop();
                 if (mSubmission == null) {
                     success = true;
@@ -341,7 +341,7 @@ public class System {
 
             if (success) {
                 mCanDirectCall = false;
-                mActor.onMessage(mSystem, message);
+                mActor.onMessage(message);
                 mCanDirectCall = true;
             }
 

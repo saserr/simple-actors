@@ -162,7 +162,7 @@ public class DelayedTellTest extends TestCase {
         }
 
         @Override
-        protected final void onMessage(@NonNull final System system, @NonNull final M message) {
+        protected final void onMessage(@NonNull final M message) {
             final long now = uptimeMillis();
             synchronized (mLock) {
                 mOnMessages.add(now);

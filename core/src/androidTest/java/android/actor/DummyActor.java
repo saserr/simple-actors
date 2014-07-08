@@ -29,7 +29,7 @@ public class DummyActor<M> extends Actor<M> {
     }
 
     @Override
-    protected final void onMessage(@NonNull final System system, @NonNls @NonNull final M message) {
+    protected final void onMessage(@NonNls @NonNull final M message) {
         fail("An unexpected message was received: " + message); //NON-NLS
     }
 }
