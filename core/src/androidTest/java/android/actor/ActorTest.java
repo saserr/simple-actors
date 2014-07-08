@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
 public class ActorTest extends TestCase {
@@ -45,7 +46,7 @@ public class ActorTest extends TestCase {
         super.tearDown();
     }
 
-    public final void testPostStart() {
+    public final void testStart() {
         final MockActor<Integer> actor = new MockActor<>();
         final Reference<Integer> reference = mSystem.with(isA(RandomString), actor);
 
@@ -72,18 +73,80 @@ public class ActorTest extends TestCase {
         assertThat("actor received message", tell.second, is(expected));
     }
 
-    public final void testStop() {
-        final Reference<Integer> reference = mSystem.with(isA(RandomString), new DummyActor<Integer>());
+    public final void testPause() {
+        final MockActor<Integer> actor = new MockActor<>();
+        final Reference<Integer> reference = mSystem.with(isA(RandomString), actor);
 
-        assertThat("actor stop", reference.stop(), is(true));
-        assertThat("actor is stopped", reference.isStopped(), is(true));
+        assertThat("actor pause", reference.pause(), is(true));
+        assertThat("actor is stopped", reference.isStopped(), is(false));
+
+        final List<Pair<System, Reference<Integer>>> postStarts = actor.getPostStarts();
+        assertThat("number of actor post start invocations", postStarts.size(), is(1));
+
+        final Pair<System, Reference<Integer>> postStart = postStarts.get(0);
+        assertThat("actor post start system", postStart.first, is(mSystem));
+        assertThat("actor post start reference", postStart.second, is(reference));
+
+        assertThat("actor pre stops", actor.getPreStops(), is(empty()));
     }
 
-    public final void testPreStop() {
+    public final void testTellAfterPause() {
+        final MockActor<Integer> actor = new MockActor<>();
+        final Reference<Integer> reference = mSystem.with(isA(RandomString), actor);
+
+        assertThat("actor pause", reference.pause(), is(true));
+        assertThat("actor tell", reference.tell(a(RandomInteger)), is(true));
+        assertThat("actor received messages", actor.getTells(), is(empty()));
+    }
+
+    public final void testTellAfterStart() {
+        final MockActor<Integer> actor = new MockActor<>();
+        final Reference<Integer> reference = mSystem.with(isA(RandomString), actor);
+
+        mSystem.pause();
+        mSystem.start();
+        final int expected = isA(RandomInteger);
+        assertThat("actor tell", reference.tell(expected), is(true));
+
+        final List<Pair<System, Integer>> tells = actor.getTells();
+        assertThat("number of actor on message invocations", tells.size(), is(1));
+
+        final Pair<System, Integer> tell = tells.get(0);
+        assertThat("actor received system", tell.first, is(mSystem));
+        assertThat("actor received message", tell.second, is(expected));
+    }
+
+    public final void testTellDuringPauseIsReceivedAfterStart() {
+        final MockActor<Integer> actor = new MockActor<>();
+        final Reference<Integer> reference = mSystem.with(isA(RandomString), actor);
+
+        mSystem.pause();
+        final int expected = isA(RandomInteger);
+        assertThat("actor tell", reference.tell(expected), is(true));
+        assertThat("actor received messages", actor.getTells(), is(empty()));
+
+        mSystem.start();
+        final List<Pair<System, Integer>> tells = actor.getTells();
+        assertThat("number of actor on message invocations", tells.size(), is(1));
+
+        final Pair<System, Integer> tell = tells.get(0);
+        assertThat("actor received system", tell.first, is(mSystem));
+        assertThat("actor received message", tell.second, is(expected));
+    }
+
+    public final void testStop() {
         final MockActor<Integer> actor = new MockActor<>();
         final Reference<Integer> reference = mSystem.with(isA(RandomString), actor);
 
         assertThat("actor stop", reference.stop(), is(true));
+        assertThat("actor is stopped", reference.isStopped(), is(true));
+
+        final List<Pair<System, Reference<Integer>>> postStarts = actor.getPostStarts();
+        assertThat("number of actor post start invocations", postStarts.size(), is(1));
+
+        final Pair<System, Reference<Integer>> postStart = postStarts.get(0);
+        assertThat("actor post start system", postStart.first, is(mSystem));
+        assertThat("actor post start reference", postStart.second, is(reference));
 
         final List<System> preStops = actor.getPreStops();
         assertThat("number of actor pre stop invocations", preStops.size(), is(1));
@@ -91,11 +154,62 @@ public class ActorTest extends TestCase {
     }
 
     public final void testDoubleStop() {
-        final Reference<Integer> reference = mSystem.with(isA(RandomString), new DummyActor<Integer>());
+        final MockActor<Integer> actor = new MockActor<>();
+        final Reference<Integer> reference = mSystem.with(isA(RandomString), actor);
 
         assertThat("1st actor stop", reference.stop(), is(true));
         assertThat("2nd actor stop", reference.stop(), is(true));
         assertThat("actor is stopped", reference.isStopped(), is(true));
+
+        final List<Pair<System, Reference<Integer>>> postStarts = actor.getPostStarts();
+        assertThat("number of actor post start invocations", postStarts.size(), is(1));
+
+        final Pair<System, Reference<Integer>> postStart = postStarts.get(0);
+        assertThat("actor post start system", postStart.first, is(mSystem));
+        assertThat("actor post start reference", postStart.second, is(reference));
+
+        final List<System> preStops = actor.getPreStops();
+        assertThat("number of actor pre stop invocations", preStops.size(), is(1));
+        assertThat("actor pre stop system", preStops.get(0), is(mSystem));
+    }
+
+    public final void testPauseAfterStop() {
+        final MockActor<Integer> actor = new MockActor<>();
+        final Reference<Integer> reference = mSystem.with(isA(RandomString), actor);
+
+        assertThat("actor stop", reference.stop(), is(true));
+        assertThat("actor is stopped", reference.isStopped(), is(true));
+        try {
+            reference.pause();
+            fail("pausing of actor did not throw UnsupportedOperationException");
+        } catch (final UnsupportedOperationException ignored) {/* expected */}
+    }
+
+    public final void testStopAfterPause() {
+        final MockActor<Integer> actor = new MockActor<>();
+        final Reference<Integer> reference = mSystem.with(isA(RandomString), actor);
+
+        assertThat("actor pause", reference.pause(), is(true));
+        assertThat("actor stop", reference.stop(), is(true));
+        assertThat("actor is stopped", reference.isStopped(), is(true));
+    }
+
+    public final void testTellAfterPauseAndBeforeStopIsReceived() {
+        final MockActor<Integer> actor = new MockActor<>();
+        final Reference<Integer> reference = mSystem.with(isA(RandomString), actor);
+
+        assertThat("actor pause", reference.pause(), is(true));
+        final int expected = isA(RandomInteger);
+        assertThat("actor tell", reference.tell(expected), is(true));
+        assertThat("actor stop", reference.stop(), is(true));
+        assertThat("actor is stopped", reference.isStopped(), is(true));
+
+        final List<Pair<System, Integer>> tells = actor.getTells();
+        assertThat("number of actor on message invocations", tells.size(), is(1));
+
+        final Pair<System, Integer> tell = tells.get(0);
+        assertThat("actor received system", tell.first, is(mSystem));
+        assertThat("actor received message", tell.second, is(expected));
     }
 
     public final void testTellAfterStop() {
@@ -135,24 +249,65 @@ public class ActorTest extends TestCase {
 
     public final void testDirectCallSystemMessage() {
         final Reference<Integer> reference = mSystem.with(isA(RandomString), new DummyActor<Integer>());
-        final MockDirectCall<Integer> directCall = new MockDirectCall<>();
-        reference.setDirectCall(directCall);
+        final MockDirectCall<Integer> direct = new MockDirectCall<>();
+        reference.setDirectCall(direct);
 
         assertThat("actor stop", reference.stop(), is(true));
-        final List<Integer> messages = directCall.getSystemMessages();
+
+        final List<Integer> messages = direct.getSystemMessages();
         assertThat("number of the direct call system messages", messages.size(), is(1));
         assertThat("direct call system message", messages.get(0), is(Reference.STOP));
     }
 
+    public final void testDirectCallSystemMessageAfterPauseWithoutPendingMessages() {
+        final Reference<Integer> reference = mSystem.with(isA(RandomString), new DummyActor<Integer>());
+        assertThat("actor pause", reference.pause(), is(true));
+
+        final MockDirectCall<Integer> direct = new MockDirectCall<>();
+        reference.setDirectCall(direct);
+        final Integer expected = isA(RandomInteger);
+        assertThat("actor send", reference.send(expected), is(true));
+
+        final List<Integer> messages = direct.getSystemMessages();
+        assertThat("number of the direct call system messages", messages.size(), is(1));
+        assertThat("direct call system message", messages.get(0), is(expected));
+    }
+
+    public final void testDirectCallSystemMessageAfterPauseWithPendingMessages() {
+        final Reference<Integer> reference = mSystem.with(isA(RandomString), new DummyActor<Integer>());
+        assertThat("actor pause", reference.pause(), is(true));
+
+        final MockDirectCall<Integer> direct = new MockDirectCall<>();
+        reference.setDirectCall(direct);
+        assertThat("actor tell", reference.tell(a(RandomInteger)), is(true));
+        assertThat("actor send", reference.send(a(RandomInteger)), is(true));
+
+        assertThat("direct call user messages", direct.getUserMessages(), is(empty()));
+        assertThat("direct call system messages", direct.getSystemMessages(), is(empty()));
+    }
+
     public final void testDirectCallUserMessage() {
         final Reference<Integer> reference = mSystem.with(isA(RandomString), new DummyActor<Integer>());
-        final MockDirectCall<Integer> directCall = new MockDirectCall<>();
-        reference.setDirectCall(directCall);
+        final MockDirectCall<Integer> direct = new MockDirectCall<>();
+        reference.setDirectCall(direct);
 
         final int expected = isA(RandomInteger);
         assertThat("actor tell", reference.tell(expected), is(true));
-        final List<Integer> messages = directCall.getUserMessages();
+
+        final List<Integer> messages = direct.getUserMessages();
         assertThat("number of the direct call user messages", messages.size(), is(1));
         assertThat("direct call user message", messages.get(0), is(expected));
+    }
+
+    public final void testDirectCallUserMessageAfterPause() {
+        final Reference<Integer> reference = mSystem.with(isA(RandomString), new DummyActor<Integer>());
+        assertThat("actor pause", reference.pause(), is(true));
+
+        final MockDirectCall<Integer> direct = new MockDirectCall<>();
+        reference.setDirectCall(direct);
+        final int expected = isA(RandomInteger);
+        assertThat("actor tell", reference.tell(expected), is(true));
+
+        assertThat("direct call user messages", direct.getUserMessages(), is(empty()));
     }
 }

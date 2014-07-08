@@ -34,7 +34,8 @@ public class Reference<M> {
     protected static final int SYSTEM_MESSAGE = 1;
     protected static final int USER_MESSAGE = 2;
 
-    protected static final int STOP = 1;
+    protected static final int PAUSE = 1;
+    protected static final int STOP = 2;
 
     @NonNls
     @NonNull
@@ -102,7 +103,15 @@ public class Reference<M> {
 
         mLock.lock();
         try {
-            success = mStopped || tell(STOP);
+            if (!mStopped && (mHandler == null) && (mDirectCall != null)) {
+                PendingMessage<M> message = mPendingMessages.poll();
+                while (message != null) {
+                    message.send(mDirectCall);
+                    message = mPendingMessages.poll();
+                }
+            }
+            success = mStopped || send(STOP);
+            mStopped = true;
         } finally {
             mLock.unlock();
         }
@@ -146,7 +155,7 @@ public class Reference<M> {
 
         mLock.lock();
         try {
-            success = !mStopped && (mHandler == null);
+            success = (mHandler == null) || !hasUndeliveredMessages(mHandler);
             if (success) {
                 mHandler = handler;
                 PendingMessage<M> message = mPendingMessages.poll();
@@ -197,7 +206,7 @@ public class Reference<M> {
         }
     }
 
-    private boolean tell(final int message) {
+    protected final boolean send(final int message) {
         final boolean success;
 
         mLock.lock();
@@ -212,6 +221,26 @@ public class Reference<M> {
                         mPendingMessages.offer(new System.PendingMessage<M>(message));
             } else {
                 success = System.send(mHandler, mDirectCall, message);
+            }
+        } finally {
+            mLock.unlock();
+        }
+
+        return success;
+    }
+
+    protected final boolean pause() {
+        final boolean success;
+
+        mLock.lock();
+        try {
+            if (mStopped) {
+                throw new UnsupportedOperationException(mActorStopped);
+            }
+
+            success = (mHandler == null) || send(PAUSE);
+            if (success) {
+                mHandler = null;
             }
         } finally {
             mLock.unlock();
@@ -236,6 +265,9 @@ public class Reference<M> {
     }
 
     private interface PendingMessage<M> {
+
+        boolean send(@NonNull final DirectCall<M> direct);
+
         boolean send(@NonNull final Handler handler, @Nullable final DirectCall<M> direct);
     }
 
@@ -261,6 +293,11 @@ public class Reference<M> {
                 super();
 
                 mMessage = message;
+            }
+
+            @Override
+            public final boolean send(@NonNull final DirectCall<M> direct) {
+                return direct.handleSystemMessage(mMessage);
             }
 
             @Override
@@ -298,6 +335,11 @@ public class Reference<M> {
                 super();
 
                 mMessage = message;
+            }
+
+            @Override
+            public final boolean send(@NonNull final DirectCall<M> direct) {
+                return direct.handleUserMessage(mMessage);
             }
 
             @Override

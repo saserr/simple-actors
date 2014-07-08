@@ -26,9 +26,11 @@ import java.util.List;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+import static android.os.Looper.getMainLooper;
+
 public class MainThreadExecutor implements Executor {
 
-    private static final Looper MAIN_THREAD = Looper.getMainLooper();
+    private static final Looper MAIN_THREAD = getMainLooper();
 
     private final Lock mLock = new ReentrantLock();
     @NonNull

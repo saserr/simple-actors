@@ -22,6 +22,7 @@ import android.support.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 
+import static android.os.Looper.myLooper;
 import static java.util.Collections.unmodifiableList;
 
 public class MockExecutor implements Executor {
@@ -67,6 +68,7 @@ public class MockExecutor implements Executor {
             super();
 
             mTask = task;
+            mTask.attach(myLooper());
         }
 
         public final boolean isStopped() {
@@ -80,6 +82,7 @@ public class MockExecutor implements Executor {
 
         @Override
         public final boolean stop() {
+            mTask.detach();
             mStopped = true;
             return true;
         }

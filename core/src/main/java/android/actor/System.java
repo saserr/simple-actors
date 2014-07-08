@@ -73,6 +73,19 @@ public class System {
         return result;
     }
 
+    public final boolean isPaused() {
+        final boolean result;
+
+        mLock.lock();
+        try {
+            result = mState == State.PAUSED;
+        } finally {
+            mLock.unlock();
+        }
+
+        return result;
+    }
+
     public final boolean isStopped() {
         final boolean result;
 
@@ -86,16 +99,63 @@ public class System {
         return result;
     }
 
+    public final void start() {
+        mLock.lock();
+        try {
+            switch (mState) {
+                case State.PAUSED:
+                    mState = State.STARTED;
+                    for (final Registration<?> registration : mRegistrations.values()) {
+                        registration.start(mExecutor);
+                    }
+                    break;
+                case State.STARTED:
+                    /* do nothing */
+                    break;
+                case State.STOPPED:
+                    throw new UnsupportedOperationException(SYSTEM_STOPPED);
+                default:
+                    throw new UnsupportedOperationException(UNKNOWN_STATE + mState);
+            }
+        } finally {
+            mLock.unlock();
+        }
+    }
+
+    public final void pause() {
+        mLock.lock();
+        try {
+            switch (mState) {
+                case State.STARTED:
+                    mState = State.PAUSED;
+                    for (final Registration<?> registration : mRegistrations.values()) {
+                        registration.pause();
+                    }
+                    break;
+                case State.PAUSED:
+                    /* do nothing */
+                    break;
+                case State.STOPPED:
+                    throw new UnsupportedOperationException(SYSTEM_STOPPED);
+                default:
+                    throw new UnsupportedOperationException(UNKNOWN_STATE + mState);
+            }
+        } finally {
+            mLock.unlock();
+        }
+    }
+
     public final void stop(final boolean immediately) {
         mLock.lock();
         try {
             switch (mState) {
                 case State.STARTED:
+                case State.PAUSED:
+                    mState = State.STOPPED;
                     for (final Registration<?> registration : mRegistrations.values()) {
                         registration.stop(immediately);
                     }
                     mRegistrations.clear();
-                    mState = State.STOPPED;
                     break;
                 case State.STOPPED:
                     /* do nothing */
@@ -154,10 +214,11 @@ public class System {
     }
 
     @Retention(SOURCE)
-    @IntDef({State.STARTED, State.STOPPED})
+    @IntDef({State.STARTED, State.PAUSED, State.STOPPED})
     private @interface State {
         int STARTED = 1;
-        int STOPPED = 2;
+        int PAUSED = 2;
+        int STOPPED = 3;
     }
 
     private static class Registration<M> implements Reference.DirectCall<M>, Handler.Callback {
@@ -220,6 +281,10 @@ public class System {
             return stopped && (mSubmission != null);
         }
 
+        public final boolean pause() {
+            return mReference.pause();
+        }
+
         public final boolean stop(final boolean immediately) {
             final boolean success;
 
@@ -244,6 +309,10 @@ public class System {
             final boolean processed;
 
             switch (message) {
+                case Reference.PAUSE:
+                    processed = (mSubmission == null) || mSubmission.stop();
+                    mSubmission = null;
+                    break;
                 case Reference.STOP:
                     processed = mSystem.onStop(this);
                     break;
