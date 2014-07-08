@@ -77,7 +77,7 @@ public class FixedSizeExecutor implements Executor {
     }
 
     @Override
-    public final void stop() {
+    public final boolean stop() {
         mLock.lock();
         try {
             for (final Manager manager : mManagers) {
@@ -88,6 +88,8 @@ public class FixedSizeExecutor implements Executor {
         } finally {
             mLock.unlock();
         }
+
+        return true;
     }
 
     public class Manager implements Dispatcher.Callback {

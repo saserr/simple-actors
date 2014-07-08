@@ -83,16 +83,19 @@ public class CurrentThreadExecutor implements Executor {
     }
 
     @Override
-    public final void stop() {
+    public final boolean stop() {
+        boolean success = true;
         mLock.lock();
         try {
             for (final Task task : mTasks) {
-                task.stop();
+                success = task.stop() && success;
             }
             mTasks.clear();
             mStopped = true;
         } finally {
             mLock.unlock();
         }
+
+        return success;
     }
 }

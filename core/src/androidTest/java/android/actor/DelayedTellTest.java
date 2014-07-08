@@ -72,11 +72,11 @@ public class DelayedTellTest extends TestCase {
         final MockActor<Integer> actor = new MockActor<>();
         final Reference<Integer> reference = mSystem.with(isA(RandomString), actor);
 
-        mSystem.pause();
+        assertThat("system pause", mSystem.pause(), is(true));
         final long expected = uptimeMillis() + DELAY_UNIT.toMillis(DELAY);
         assertThat("actor tell", reference.tell(a(RandomInteger), DELAY, DELAY_UNIT), is(true));
 
-        mSystem.start();
+        assertThat("system start", mSystem.start(), is(true));
         final List<Long> onMessages = actor.getOnMessages(1);
         assertThat("number of the actor on message invocations", onMessages.size(), is(1));
         assertThat("actor received message time ", onMessages.get(0), is(greaterThanOrEqualTo(expected)));
@@ -86,13 +86,13 @@ public class DelayedTellTest extends TestCase {
         final MockActor<Integer> actor = new MockActor<>();
         final Reference<Integer> reference = mSystem.with(isA(RandomString), actor);
 
-        mSystem.pause();
+        assertThat("system pause", mSystem.pause(), is(true));
         final long expected = uptimeMillis() + DELAY_UNIT.toMillis(DELAY);
         assertThat("actor tell", reference.tell(a(RandomInteger), DELAY, DELAY_UNIT), is(true));
 
         Thread.sleep(DELAY_UNIT.toMillis(DELAY));
 
-        mSystem.start();
+        assertThat("system start", mSystem.start(), is(true));
         final List<Long> onMessages = actor.getOnMessages(1);
         assertThat("number of the actor on message invocations", onMessages.size(), is(1));
         assertThat("actor received message time ", onMessages.get(0), is(greaterThanOrEqualTo(expected)));

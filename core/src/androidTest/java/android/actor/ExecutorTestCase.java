@@ -113,7 +113,7 @@ public abstract class ExecutorTestCase extends TestCase {
         assertThat("executor submit", mExecutor.submit(task), is(notNullValue()));
         assertThat("number of the task attach invocations", task.getAttachments(1), is(1));
 
-        mExecutor.stop();
+        assertThat("executor stop", mExecutor.stop(), is(true));
         assertThat("number of the task attach invocations", task.getAttachments(1), is(1));
         assertThat("number of the task detach invocations", task.getDetachments(0), is(0));
         assertThat("number of the task stop invocations", task.getStops(1), is(1));
@@ -124,10 +124,10 @@ public abstract class ExecutorTestCase extends TestCase {
         assertThat("executor submit", mExecutor.submit(task), is(notNullValue()));
         assertThat("number of the task attach invocations", task.getAttachments(1), is(1));
 
-        mExecutor.stop();
+        assertThat("executor stop", mExecutor.stop(), is(true));
         assertThat("number of the task stop invocations", task.getStops(1), is(1));
 
-        mExecutor.stop();
+        assertThat("executor stop", mExecutor.stop(), is(true));
         assertThat("number of the task attach invocations", task.getAttachments(1), is(1));
         assertThat("number of the task detach invocations", task.getDetachments(0), is(0));
         assertThat("number of the task stop invocations", task.getStops(1), is(1));
@@ -143,14 +143,14 @@ public abstract class ExecutorTestCase extends TestCase {
         assertThat("submission stop", submission.stop(), is(true));
         assertThat("number of the task detach invocations", task.getDetachments(1), is(1));
 
-        mExecutor.stop();
+        assertThat("executor stop", mExecutor.stop(), is(true));
         assertThat("number of the task attach invocations", task.getAttachments(1), is(1));
         assertThat("number of the task detach invocations", task.getDetachments(1), is(1));
         assertThat("number of the task stop invocations", task.getStops(0), is(0));
     }
 
     public final void testSubmitAfterStop() throws InterruptedException {
-        mExecutor.stop();
+        assertThat("executor stop", mExecutor.stop(), is(true));
         final SpyTask task = new SpyTask();
         try {
             assertThat("executor submit", mExecutor.submit(task), is(notNullValue()));
@@ -185,7 +185,8 @@ public abstract class ExecutorTestCase extends TestCase {
         }
 
         @Override
-        public final void stop() {
+        public final boolean stop() {
+            return true;
         }
     }
 
@@ -260,11 +261,13 @@ public abstract class ExecutorTestCase extends TestCase {
         }
 
         @Override
-        public final void stop() {
+        public final boolean stop() {
             synchronized (mLock) {
                 mStops++;
                 mLock.notifyAll();
             }
+
+            return true;
         }
     }
 }

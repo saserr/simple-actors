@@ -25,7 +25,7 @@ public interface Executor {
     @Nullable
     Submission submit(@NonNull final Task task);
 
-    void stop();
+    boolean stop();
 
     interface Task {
 
@@ -33,7 +33,7 @@ public interface Executor {
 
         boolean detach();
 
-        void stop();
+        boolean stop();
     }
 
     interface Submission {

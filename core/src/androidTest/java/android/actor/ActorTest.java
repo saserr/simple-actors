@@ -20,9 +20,11 @@ import android.actor.util.CurrentThreadExecutor;
 import android.support.annotation.NonNull;
 import android.util.Pair;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static java.util.Collections.unmodifiableList;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
@@ -108,8 +110,8 @@ public class ActorTest extends TestCase {
         final MockActor<Integer> actor = new MockActor<>();
         final Reference<Integer> reference = mSystem.with(isA(RandomString), actor);
 
-        mSystem.pause();
-        mSystem.start();
+        assertThat("system pause", mSystem.pause(), is(true));
+        assertThat("system start", mSystem.start(), is(true));
         final int expected = isA(RandomInteger);
         assertThat("actor tell", reference.tell(expected), is(true));
 
@@ -125,12 +127,12 @@ public class ActorTest extends TestCase {
         final MockActor<Integer> actor = new MockActor<>();
         final Reference<Integer> reference = mSystem.with(isA(RandomString), actor);
 
-        mSystem.pause();
+        assertThat("system pause", mSystem.pause(), is(true));
         final int expected = isA(RandomInteger);
         assertThat("actor tell", reference.tell(expected), is(true));
         assertThat("actor received messages", actor.getOnMessages(), is(empty()));
 
-        mSystem.start();
+        assertThat("system start", mSystem.start(), is(true));
         final List<Pair<System, Integer>> onMessages = actor.getOnMessages();
         assertThat("number of the actor on message invocations", onMessages.size(), is(1));
 
@@ -182,7 +184,7 @@ public class ActorTest extends TestCase {
         final MockActor<Integer> actor = new MockActor<>();
         final Reference<Integer> reference = mSystem.with(isA(RandomString), actor);
 
-        mExecutor.stop();
+        assertThat("executor stop", mExecutor.stop(), is(true));
         assertThat("actor is stopped", reference.isStopped(), is(true));
 
         final List<Pair<System, Reference<Integer>>> postStarts = actor.getPostStarts();
@@ -333,5 +335,37 @@ public class ActorTest extends TestCase {
         assertThat("actor tell", reference.tell(expected), is(true));
 
         assertThat("direct call user messages", direct.getUserMessages(), is(empty()));
+    }
+
+    private static class MockDirectCall<M> implements Reference.DirectCall<M> {
+
+        private final List<Integer> mSystemMessages = new ArrayList<>(1);
+        private final List<M> mUserMessages = new ArrayList<>(1);
+
+        public MockDirectCall() {
+            super();
+        }
+
+        @NonNull
+        public final List<Integer> getSystemMessages() {
+            return unmodifiableList(mSystemMessages);
+        }
+
+        @NonNull
+        public final List<M> getUserMessages() {
+            return unmodifiableList(mUserMessages);
+        }
+
+        @Override
+        public final boolean handleSystemMessage(final int message) {
+            mSystemMessages.add(message);
+            return true;
+        }
+
+        @Override
+        public final boolean handleUserMessage(@NonNull final M message) {
+            mUserMessages.add(message);
+            return true;
+        }
     }
 }

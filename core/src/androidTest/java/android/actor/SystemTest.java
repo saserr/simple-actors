@@ -16,10 +16,15 @@
 
 package android.actor;
 
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.util.Pair;
 
+import java.util.ArrayList;
 import java.util.List;
 
+import static android.os.Looper.myLooper;
+import static java.util.Collections.unmodifiableList;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
@@ -104,7 +109,7 @@ public class SystemTest extends TestCase {
         final Reference<Integer> reference = mSystem.with(isA(RandomString), new DummyActor<Integer>());
         assertThat("actor reference", reference, is(notNullValue()));
 
-        mSystem.start();
+        assertThat("system start", mSystem.start(), is(true));
         assertThat("system is started", mSystem.isStarted(), is(true));
         assertThat("system is paused", mSystem.isPaused(), is(false));
         assertThat("system is stopped", mSystem.isStopped(), is(false));
@@ -123,7 +128,7 @@ public class SystemTest extends TestCase {
         final Reference<Integer> reference = mSystem.with(isA(RandomString), new DummyActor<Integer>());
         assertThat("actor reference", reference, is(notNullValue()));
 
-        mSystem.pause();
+        assertThat("system pause", mSystem.pause(), is(true));
         assertThat("system is started", mSystem.isStarted(), is(false));
         assertThat("system is paused", mSystem.isPaused(), is(true));
         assertThat("system is stopped", mSystem.isStopped(), is(false));
@@ -142,8 +147,8 @@ public class SystemTest extends TestCase {
         final Reference<Integer> reference = mSystem.with(isA(RandomString), new DummyActor<Integer>());
         assertThat("actor reference", reference, is(notNullValue()));
 
-        mSystem.pause();
-        mSystem.pause();
+        assertThat("system pause", mSystem.pause(), is(true));
+        assertThat("system pause", mSystem.pause(), is(true));
         assertThat("system is started", mSystem.isStarted(), is(false));
         assertThat("system is paused", mSystem.isPaused(), is(true));
         assertThat("system is stopped", mSystem.isStopped(), is(false));
@@ -155,7 +160,7 @@ public class SystemTest extends TestCase {
     }
 
     public final void testSubmitAfterPause() {
-        mSystem.pause();
+        assertThat("system pause", mSystem.pause(), is(true));
         assertThat("system is started", mSystem.isStarted(), is(false));
         assertThat("system is paused", mSystem.isPaused(), is(true));
         assertThat("system is stopped", mSystem.isStopped(), is(false));
@@ -175,8 +180,8 @@ public class SystemTest extends TestCase {
         final Reference<Integer> reference = mSystem.with(isA(RandomString), new DummyActor<Integer>());
         assertThat("actor reference", reference, is(notNullValue()));
 
-        mSystem.pause();
-        mSystem.start();
+        assertThat("system pause", mSystem.pause(), is(true));
+        assertThat("system start", mSystem.start(), is(true));
         assertThat("system is started", mSystem.isStarted(), is(true));
         assertThat("system is paused", mSystem.isPaused(), is(false));
         assertThat("system is stopped", mSystem.isStopped(), is(false));
@@ -196,7 +201,7 @@ public class SystemTest extends TestCase {
         final Reference<Integer> reference = mSystem.with(isA(RandomString), new DummyActor<Integer>());
         assertThat("actor reference", reference, is(notNullValue()));
 
-        mSystem.stop(false);
+        assertThat("system stop", mSystem.stop(false), is(true));
         assertThat("system is started", mSystem.isStarted(), is(false));
         assertThat("system is paused", mSystem.isPaused(), is(false));
         assertThat("system is stopped", mSystem.isStopped(), is(true));
@@ -215,8 +220,8 @@ public class SystemTest extends TestCase {
         final Reference<Integer> reference = mSystem.with(isA(RandomString), new DummyActor<Integer>());
         assertThat("actor reference", reference, is(notNullValue()));
 
-        mSystem.stop(false);
-        mSystem.stop(false);
+        assertThat("system stop", mSystem.stop(false), is(true));
+        assertThat("system stop", mSystem.stop(false), is(true));
         assertThat("system is started", mSystem.isStarted(), is(false));
         assertThat("system is paused", mSystem.isPaused(), is(false));
         assertThat("system is stopped", mSystem.isStopped(), is(true));
@@ -232,7 +237,7 @@ public class SystemTest extends TestCase {
         assertThat("system is paused", mSystem.isPaused(), is(false));
         assertThat("system is stopped", mSystem.isStopped(), is(false));
 
-        mSystem.stop(false);
+        assertThat("system stop", mSystem.stop(false), is(true));
         try {
             mSystem.with(isA(RandomString), new DummyActor<>());
             fail("submitting of actor did not throw UnsupportedOperationException");
@@ -246,7 +251,7 @@ public class SystemTest extends TestCase {
         assertThat("system is paused", mSystem.isPaused(), is(false));
         assertThat("system is stopped", mSystem.isStopped(), is(false));
 
-        mSystem.stop(false);
+        assertThat("system stop", mSystem.stop(false), is(true));
         try {
             mSystem.start();
             fail("starting of system did not throw UnsupportedOperationException");
@@ -258,7 +263,7 @@ public class SystemTest extends TestCase {
         assertThat("system is paused", mSystem.isPaused(), is(false));
         assertThat("system is stopped", mSystem.isStopped(), is(false));
 
-        mSystem.stop(false);
+        assertThat("system stop", mSystem.stop(false), is(true));
         try {
             mSystem.pause();
             fail("pausing of system did not throw UnsupportedOperationException");
@@ -274,10 +279,10 @@ public class SystemTest extends TestCase {
         final Reference<Integer> reference = mSystem.with(isA(RandomString), actor);
         assertThat("actor reference", reference, is(notNullValue()));
 
-        mSystem.pause();
+        assertThat("system pause", mSystem.pause(), is(true));
         final int expected = isA(RandomInteger);
         assertThat("actor tell", reference.tell(expected), is(true));
-        mSystem.stop(false);
+        assertThat("system stop", mSystem.stop(false), is(true));
         assertThat("system is started", mSystem.isStarted(), is(false));
         assertThat("system is paused", mSystem.isPaused(), is(false));
         assertThat("system is stopped", mSystem.isStopped(), is(true));
@@ -299,7 +304,7 @@ public class SystemTest extends TestCase {
         final Reference<Integer> reference = mSystem.with(isA(RandomString), new DummyActor<Integer>());
         assertThat("actor reference", reference, is(notNullValue()));
 
-        mSystem.stop(true);
+        assertThat("system stop", mSystem.stop(true), is(true));
         assertThat("system is started", mSystem.isStarted(), is(false));
         assertThat("system is paused", mSystem.isPaused(), is(false));
         assertThat("system is stopped", mSystem.isStopped(), is(true));
@@ -318,8 +323,8 @@ public class SystemTest extends TestCase {
         final Reference<Integer> reference = mSystem.with(isA(RandomString), new DummyActor<Integer>());
         assertThat("actor reference", reference, is(notNullValue()));
 
-        mSystem.stop(true);
-        mSystem.stop(true);
+        assertThat("system stop", mSystem.stop(true), is(true));
+        assertThat("system stop", mSystem.stop(true), is(true));
         assertThat("system is started", mSystem.isStarted(), is(false));
         assertThat("system is paused", mSystem.isPaused(), is(false));
         assertThat("system is stopped", mSystem.isStopped(), is(true));
@@ -335,7 +340,7 @@ public class SystemTest extends TestCase {
         assertThat("system is paused", mSystem.isPaused(), is(false));
         assertThat("system is stopped", mSystem.isStopped(), is(false));
 
-        mSystem.stop(true);
+        assertThat("system stop", mSystem.stop(true), is(true));
         try {
             mSystem.with(isA(RandomString), new DummyActor<>());
             fail("submitting of actor did not throw UnsupportedOperationException");
@@ -349,7 +354,7 @@ public class SystemTest extends TestCase {
         assertThat("system is paused", mSystem.isPaused(), is(false));
         assertThat("system is stopped", mSystem.isStopped(), is(false));
 
-        mSystem.stop(true);
+        assertThat("system stop", mSystem.stop(true), is(true));
         try {
             mSystem.start();
             fail("starting of system did not throw UnsupportedOperationException");
@@ -365,15 +370,80 @@ public class SystemTest extends TestCase {
         final Reference<Integer> reference = mSystem.with(isA(RandomString), actor);
         assertThat("actor reference", reference, is(notNullValue()));
 
-        mSystem.pause();
+        assertThat("system pause", mSystem.pause(), is(true));
         final int expected = isA(RandomInteger);
         assertThat("actor tell", reference.tell(expected), is(true));
-        mSystem.stop(true);
+        assertThat("system stop", mSystem.stop(true), is(true));
         assertThat("system is started", mSystem.isStarted(), is(false));
         assertThat("system is paused", mSystem.isPaused(), is(false));
         assertThat("system is stopped", mSystem.isStopped(), is(true));
 
         assertThat("actor is stopped", reference.isStopped(), is(true));
         assertThat("actor received messages", actor.getOnMessages(), is(empty()));
+    }
+
+    private static class MockExecutor implements Executor {
+
+        private final List<Submission> mSubmissions = new ArrayList<>(1);
+
+        private boolean mStopped = false;
+
+        public MockExecutor() {
+            super();
+        }
+
+        public final boolean isStopped() {
+            return mStopped;
+        }
+
+        @NonNull
+        public final List<Submission> getSubmissions() {
+            return unmodifiableList(mSubmissions);
+        }
+
+        @Nullable
+        @Override
+        public final Submission submit(@NonNull final Executor.Task task) {
+            final Submission submission = new Submission(task);
+            mSubmissions.add(submission);
+            return submission;
+        }
+
+        @Override
+        public final boolean stop() {
+            mStopped = true;
+            return true;
+        }
+
+        public static class Submission implements Executor.Submission {
+
+            @NonNull
+            private final Executor.Task mTask;
+
+            private boolean mStopped = false;
+
+            public Submission(@NonNull final Executor.Task task) {
+                super();
+
+                mTask = task;
+                mTask.attach(myLooper());
+            }
+
+            public final boolean isStopped() {
+                return mStopped;
+            }
+
+            @NonNull
+            public final Executor.Task getTask() {
+                return mTask;
+            }
+
+            @Override
+            public final boolean stop() {
+                mTask.detach();
+                mStopped = true;
+                return true;
+            }
+        }
     }
 }

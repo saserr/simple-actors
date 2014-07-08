@@ -40,7 +40,7 @@ public class FixedSizeExecutorTest extends ExecutorTestCase {
     public final void testNonPositiveSize() {
         try {
             final FixedSizeExecutor executor = new FixedSizeExecutor(0);
-            executor.stop();
+            assertThat("executor stop", executor.stop(), is(true));
             fail("creation of executor did not throw IllegalArgumentException");
         } catch (final IllegalArgumentException ignored) {/* expected */}
     }
@@ -101,8 +101,8 @@ public class FixedSizeExecutorTest extends ExecutorTestCase {
         }
 
         @Override
-        public final void stop() {
-            /* do nothing */
+        public final boolean stop() {
+            return true;
         }
     }
 }

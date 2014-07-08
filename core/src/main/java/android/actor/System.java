@@ -99,14 +99,16 @@ public class System {
         return result;
     }
 
-    public final void start() {
+    public final boolean start() {
+        boolean success = true;
+
         mLock.lock();
         try {
             switch (mState) {
                 case State.PAUSED:
                     mState = State.STARTED;
                     for (final Registration<?> registration : mRegistrations.values()) {
-                        registration.start(mExecutor);
+                        success = registration.start(mExecutor) && success;
                     }
                     break;
                 case State.STARTED:
@@ -120,16 +122,20 @@ public class System {
         } finally {
             mLock.unlock();
         }
+
+        return success;
     }
 
-    public final void pause() {
+    public final boolean pause() {
+        boolean success = true;
+
         mLock.lock();
         try {
             switch (mState) {
                 case State.STARTED:
                     mState = State.PAUSED;
                     for (final Registration<?> registration : mRegistrations.values()) {
-                        registration.pause();
+                        success = registration.pause() && success;
                     }
                     break;
                 case State.PAUSED:
@@ -143,9 +149,13 @@ public class System {
         } finally {
             mLock.unlock();
         }
+
+        return success;
     }
 
-    public final void stop(final boolean immediately) {
+    public final boolean stop(final boolean immediately) {
+        boolean success = true;
+
         mLock.lock();
         try {
             switch (mState) {
@@ -153,7 +163,7 @@ public class System {
                 case State.PAUSED:
                     mState = State.STOPPED;
                     for (final Registration<?> registration : mRegistrations.values()) {
-                        registration.stop(immediately);
+                        success = registration.stop(immediately) && success;
                     }
                     mRegistrations.clear();
                     break;
@@ -166,6 +176,8 @@ public class System {
         } finally {
             mLock.unlock();
         }
+
+        return success;
     }
 
     @NonNull
@@ -245,8 +257,8 @@ public class System {
             }
 
             @Override
-            public void stop() {
-                mSystem.onStop(Registration.this);
+            public boolean stop() {
+                return mSystem.onStop(Registration.this);
             }
         };
 
