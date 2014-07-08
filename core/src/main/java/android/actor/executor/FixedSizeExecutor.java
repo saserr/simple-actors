@@ -17,13 +17,10 @@
 package android.actor.executor;
 
 import android.actor.Executor;
-import android.os.Looper;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -92,125 +89,20 @@ public class FixedSizeExecutor implements Executor {
         return true;
     }
 
-    public class Manager implements Dispatcher.Callback {
+    private static class Manager extends android.actor.executor.Manager {
 
         @NonNull
         private final Dispatcher mDispatcher;
 
-        private final Lock mLock = new ReentrantLock();
-        private final Collection<Task> mTasks = new HashSet<>();
-
-        @Nullable
-        private Looper mLooper;
-
-        public Manager() {
+        private Manager() {
             super();
 
             mDispatcher = new Dispatcher(this);
             mDispatcher.start();
         }
 
-        public final boolean isEmpty() {
-            final boolean result;
-
-            mLock.lock();
-            try {
-                result = mTasks.isEmpty();
-            } finally {
-                mLock.unlock();
-            }
-
-            return result;
-        }
-
-        public final int size() {
-            final int result;
-
-            mLock.lock();
-            try {
-                result = mTasks.size();
-            } finally {
-                mLock.unlock();
-            }
-
-            return result;
-        }
-
         public final void stop() {
             mDispatcher.stop();
-        }
-
-        @Override
-        public final void onStart(@NonNull final Looper looper) {
-            mLock.lock();
-            try {
-                mLooper = looper;
-                for (final Executor.Task task : mTasks) {
-                    if (!task.attach(looper)) {
-                        mTasks.remove(task);
-                    }
-                }
-            } finally {
-                mLock.unlock();
-            }
-        }
-
-        @Override
-        public final void onStop() {
-            mLock.lock();
-            try {
-                mLooper = null;
-                for (final Executor.Task task : mTasks) {
-                    task.stop();
-                }
-                mTasks.clear();
-            } finally {
-                mLock.unlock();
-            }
-        }
-
-        @Nullable
-        public final Executor.Submission submit(@NonNull final Executor.Task task) {
-            @org.jetbrains.annotations.Nullable final Executor.Submission submission;
-
-            mLock.lock();
-            try {
-                if (mTasks.add(task)) {
-                    if ((mLooper == null) || task.attach(mLooper)) {
-                        submission = new Executor.Submission() {
-                            @Override
-                            public boolean stop() {
-                                final boolean success;
-
-                                mLock.lock();
-                                try {
-                                    if (mTasks.remove(task)) {
-                                        success = (mLooper == null) || task.detach();
-                                        if (!success) {
-                                            mTasks.add(task);
-                                        }
-                                    } else {
-                                        success = true;
-                                    }
-                                } finally {
-                                    mLock.unlock();
-                                }
-
-                                return success;
-                            }
-                        };
-                    } else {
-                        mTasks.remove(task);
-                        submission = null;
-                    }
-                } else {
-                    submission = null;
-                }
-            } finally {
-                mLock.unlock();
-            }
-
-            return submission;
         }
     }
 }

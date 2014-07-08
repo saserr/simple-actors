@@ -17,26 +17,26 @@
 package android.actor.util;
 
 import android.actor.Executor;
-import android.os.Looper;
+import android.actor.executor.Manager;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
-import java.util.Collection;
-import java.util.HashSet;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+import static android.os.Looper.myLooper;
+
 public class CurrentThreadExecutor implements Executor {
 
-    private final Looper mLooper = Looper.myLooper();
     private final Lock mLock = new ReentrantLock();
-    @NonNull
-    private final Collection<Task> mTasks = new HashSet<>();
 
+    private Manager mManager = new Manager();
     private boolean mStopped = false;
 
     public CurrentThreadExecutor() {
         super();
+
+        mManager.onStart(myLooper());
     }
 
     @Nullable
@@ -50,30 +50,7 @@ public class CurrentThreadExecutor implements Executor {
                 throw new UnsupportedOperationException("Executor is stopped!");
             }
 
-            if (mTasks.add(task)) {
-                if (task.attach(mLooper)) {
-                    submission = new Executor.Submission() {
-                        @Override
-                        public boolean stop() {
-                            final boolean success;
-
-                            mLock.lock();
-                            try {
-                                success = !mTasks.remove(task) || task.detach();
-                            } finally {
-                                mLock.unlock();
-                            }
-
-                            return success;
-                        }
-                    };
-                } else {
-                    mTasks.remove(task);
-                    submission = null;
-                }
-            } else {
-                submission = null;
-            }
+            submission = mManager.submit(task);
         } finally {
             mLock.unlock();
         }
@@ -85,13 +62,14 @@ public class CurrentThreadExecutor implements Executor {
     @Override
     public final boolean stop() {
         boolean success = true;
+
         mLock.lock();
         try {
-            for (final Task task : mTasks) {
-                success = task.stop() && success;
+            if (!mStopped) {
+                success = mManager.onStop();
+                mManager = null;
+                mStopped = true;
             }
-            mTasks.clear();
-            mStopped = true;
         } finally {
             mLock.unlock();
         }

@@ -382,14 +382,8 @@ public class SystemTest extends TestCase {
 
         private final List<Submission> mSubmissions = new ArrayList<>(1);
 
-        private boolean mStopped = false;
-
         private MockExecutor() {
             super();
-        }
-
-        public final boolean isStopped() {
-            return mStopped;
         }
 
         @NonNull
@@ -407,7 +401,6 @@ public class SystemTest extends TestCase {
 
         @Override
         public final boolean stop() {
-            mStopped = true;
             return true;
         }
 

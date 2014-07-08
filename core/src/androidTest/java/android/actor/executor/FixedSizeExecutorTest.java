@@ -99,10 +99,5 @@ public class FixedSizeExecutorTest extends ExecutorTestCase {
         public final boolean detach() {
             return true;
         }
-
-        @Override
-        public final boolean stop() {
-            return true;
-        }
     }
 }

@@ -132,19 +132,23 @@ public class DispatcherTest extends TestCase {
         }
 
         @Override
-        public final void onStart(@NonNull final Looper looper) {
+        public final boolean onStart(@NonNull final Looper looper) {
             synchronized (mLock) {
                 mStarts++;
                 mLock.notifyAll();
             }
+
+            return true;
         }
 
         @Override
-        public final void onStop() {
+        public final boolean onStop() {
             synchronized (mLock) {
                 mStops++;
                 mLock.notifyAll();
             }
+
+            return true;
         }
     }
 }

@@ -21,8 +21,6 @@ import android.os.Looper;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
-import java.util.Collection;
-import java.util.HashSet;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -33,13 +31,14 @@ public class MainThreadExecutor implements Executor {
     private static final Looper MAIN_THREAD = getMainLooper();
 
     private final Lock mLock = new ReentrantLock();
-    @NonNull
-    private final Collection<Task> mTasks = new HashSet<>();
 
+    private Manager mManager = new Manager();
     private boolean mStopped = false;
 
     public MainThreadExecutor() {
         super();
+
+        mManager.onStart(MAIN_THREAD);
     }
 
     @Nullable
@@ -53,30 +52,7 @@ public class MainThreadExecutor implements Executor {
                 throw new UnsupportedOperationException("Executor is stopped!");
             }
 
-            if (mTasks.add(task)) {
-                if (task.attach(MAIN_THREAD)) {
-                    submission = new Executor.Submission() {
-                        @Override
-                        public boolean stop() {
-                            final boolean success;
-
-                            mLock.lock();
-                            try {
-                                success = !mTasks.remove(task) || task.detach();
-                            } finally {
-                                mLock.unlock();
-                            }
-
-                            return success;
-                        }
-                    };
-                } else {
-                    mTasks.remove(task);
-                    submission = null;
-                }
-            } else {
-                submission = null;
-            }
+            submission = mManager.submit(task);
         } finally {
             mLock.unlock();
         }
@@ -91,11 +67,11 @@ public class MainThreadExecutor implements Executor {
 
         mLock.lock();
         try {
-            for (final Task task : mTasks) {
-                success = task.stop() && success;
+            if (!mStopped) {
+                success = mManager.onStop();
+                mManager = null;
+                mStopped = true;
             }
-            mTasks.clear();
-            mStopped = true;
         } finally {
             mLock.unlock();
         }

@@ -42,9 +42,9 @@ public class Dispatcher {
 
     public interface Callback {
 
-        void onStart(@NonNull final Looper looper);
+        boolean onStart(@NonNull final Looper looper);
 
-        void onStop();
+        boolean onStop();
     }
 
     private static class Loop implements Runnable {
@@ -65,8 +65,7 @@ public class Dispatcher {
             Looper.prepare();
 
             final Looper current = Looper.myLooper();
-            if (mLooper.compareAndSet(null, current)) {
-                mCallback.onStart(current);
+            if (mLooper.compareAndSet(null, current) && mCallback.onStart(current)) {
                 try {
                     Looper.loop();
                 } finally {

@@ -167,21 +167,12 @@ public class ActorTest extends TestCase {
         assertThat("number of actor pre stop invocations", actor.getPreStops(), is(1));
     }
 
-    public final void testExecutorStop() {
+    public final void testStopExecutor() {
         final MockActor<Integer> actor = new MockActor<>();
         final Reference<Integer> reference = mSystem.with(isA(RandomString), actor);
 
         assertThat("executor stop", mExecutor.stop(), is(true));
-        assertThat("actor is stopped", reference.isStopped(), is(true));
-
-        final List<Pair<System, Reference<Integer>>> postStarts = actor.getPostStarts();
-        assertThat("number of actor post start invocations", postStarts.size(), is(1));
-
-        final Pair<System, Reference<Integer>> postStart = postStarts.get(0);
-        assertThat("actor post start system", postStart.first, is(mSystem));
-        assertThat("actor post start reference", postStart.second, is(reference));
-
-        assertThat("number of actor pre stop invocations", actor.getPreStops(), is(1));
+        assertThat("actor is stopped", reference.isStopped(), is(false));
     }
 
     public final void testPauseAfterStop() {

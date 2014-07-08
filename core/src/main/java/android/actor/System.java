@@ -255,11 +255,6 @@ public class System {
                 mSubmission = null;
                 return result;
             }
-
-            @Override
-            public boolean stop() {
-                return mSystem.onStop(Registration.this);
-            }
         };
 
         private boolean mCanDirectCall = true;

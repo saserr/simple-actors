@@ -32,8 +32,6 @@ public interface Executor {
         boolean attach(@NonNull final Looper looper);
 
         boolean detach();
-
-        boolean stop();
     }
 
     interface Submission {
