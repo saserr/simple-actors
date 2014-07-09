@@ -16,6 +16,7 @@
 
 package android.actor;
 
+import android.actor.util.Wait;
 import android.os.Looper;
 import android.support.annotation.NonNull;
 
@@ -131,8 +132,6 @@ public abstract class ExecutorTestCase extends TestCase {
 
     private static class SpyTask implements Executor.Task {
 
-        private static final int MAX_WAITS = 10;
-
         private final Object mLock = new Object();
 
         private int mAttachments = 0;
@@ -145,8 +144,8 @@ public abstract class ExecutorTestCase extends TestCase {
         public final int getAttachments(final int expected) throws InterruptedException {
             synchronized (mLock) {
                 int waits = 0;
-                while ((mAttachments < expected) && (waits < MAX_WAITS)) {
-                    mLock.wait(100);
+                while ((mAttachments < expected) && (waits < Wait.MAX_REPEATS)) {
+                    mLock.wait(Wait.DELAY);
                     waits++;
                 }
 
@@ -157,8 +156,8 @@ public abstract class ExecutorTestCase extends TestCase {
         public final int getDetachments(final int expected) throws InterruptedException {
             synchronized (mLock) {
                 int waits = 0;
-                while ((mDetachments < expected) && (waits < MAX_WAITS)) {
-                    mLock.wait(100);
+                while ((mDetachments < expected) && (waits < Wait.MAX_REPEATS)) {
+                    mLock.wait(Wait.DELAY);
                     waits++;
                 }
 

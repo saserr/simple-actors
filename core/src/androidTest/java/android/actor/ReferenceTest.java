@@ -20,16 +20,14 @@ import android.actor.util.CurrentThreadExecutor;
 import android.support.annotation.NonNull;
 import android.util.Pair;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static java.util.Collections.unmodifiableList;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
-public class ActorTest extends TestCase {
+public class ReferenceTest extends TestCase {
 
     private Executor mExecutor;
     private System mSystem;
@@ -244,101 +242,5 @@ public class ActorTest extends TestCase {
 
         assertThat("actor tell", reference.tell(1), is(true));
         assertThat("actor last received message", last.get(), is(1));
-    }
-
-    public final void testDirectCallSystemMessage() {
-        final Reference<Integer> reference = mSystem.with(isA(RandomString), new DummyActor<Integer>());
-        final MockDirectCall<Integer> direct = new MockDirectCall<>();
-        reference.setDirectCall(direct);
-
-        assertThat("actor stop", reference.stop(), is(true));
-
-        final List<Integer> messages = direct.getSystemMessages();
-        assertThat("number of the direct call system messages", messages.size(), is(1));
-        assertThat("direct call system message", messages.get(0), is(Reference.STOP));
-    }
-
-    public final void testDirectCallSystemMessageAfterPauseWithoutPendingMessages() {
-        final Reference<Integer> reference = mSystem.with(isA(RandomString), new DummyActor<Integer>());
-        assertThat("actor pause", reference.pause(), is(true));
-
-        final MockDirectCall<Integer> direct = new MockDirectCall<>();
-        reference.setDirectCall(direct);
-        final Integer expected = isA(RandomInteger);
-        assertThat("actor send", reference.send(expected), is(true));
-
-        final List<Integer> messages = direct.getSystemMessages();
-        assertThat("number of the direct call system messages", messages.size(), is(1));
-        assertThat("direct call system message", messages.get(0), is(expected));
-    }
-
-    public final void testDirectCallSystemMessageAfterPauseWithPendingMessages() {
-        final Reference<Integer> reference = mSystem.with(isA(RandomString), new DummyActor<Integer>());
-        assertThat("actor pause", reference.pause(), is(true));
-
-        final MockDirectCall<Integer> direct = new MockDirectCall<>();
-        reference.setDirectCall(direct);
-        assertThat("actor tell", reference.tell(a(RandomInteger)), is(true));
-        assertThat("actor send", reference.send(a(RandomInteger)), is(true));
-
-        assertThat("direct call user messages", direct.getUserMessages(), is(empty()));
-        assertThat("direct call system messages", direct.getSystemMessages(), is(empty()));
-    }
-
-    public final void testDirectCallUserMessage() {
-        final Reference<Integer> reference = mSystem.with(isA(RandomString), new DummyActor<Integer>());
-        final MockDirectCall<Integer> direct = new MockDirectCall<>();
-        reference.setDirectCall(direct);
-
-        final int expected = isA(RandomInteger);
-        assertThat("actor tell", reference.tell(expected), is(true));
-
-        final List<Integer> messages = direct.getUserMessages();
-        assertThat("number of the direct call user messages", messages.size(), is(1));
-        assertThat("direct call user message", messages.get(0), is(expected));
-    }
-
-    public final void testDirectCallUserMessageAfterPause() {
-        final Reference<Integer> reference = mSystem.with(isA(RandomString), new DummyActor<Integer>());
-        assertThat("actor pause", reference.pause(), is(true));
-
-        final MockDirectCall<Integer> direct = new MockDirectCall<>();
-        reference.setDirectCall(direct);
-        final int expected = isA(RandomInteger);
-        assertThat("actor tell", reference.tell(expected), is(true));
-
-        assertThat("direct call user messages", direct.getUserMessages(), is(empty()));
-    }
-
-    private static class MockDirectCall<M> implements Reference.DirectCall<M> {
-
-        private final List<Integer> mSystemMessages = new ArrayList<>(1);
-        private final List<M> mUserMessages = new ArrayList<>(1);
-
-        private MockDirectCall() {
-            super();
-        }
-
-        @NonNull
-        public final List<Integer> getSystemMessages() {
-            return unmodifiableList(mSystemMessages);
-        }
-
-        @NonNull
-        public final List<M> getUserMessages() {
-            return unmodifiableList(mUserMessages);
-        }
-
-        @Override
-        public final boolean handleSystemMessage(final int message) {
-            mSystemMessages.add(message);
-            return true;
-        }
-
-        @Override
-        public final boolean handleUserMessage(@NonNull final M message) {
-            mUserMessages.add(message);
-            return true;
-        }
     }
 }

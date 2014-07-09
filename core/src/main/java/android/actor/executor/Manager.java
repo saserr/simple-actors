@@ -90,9 +90,11 @@ public class Manager implements Dispatcher.Callback {
 
         mLock.lock();
         try {
-            mLooper = null;
-            for (final Executor.Task task : mTasks) {
-                success = task.detach() && success;
+            if (mLooper != null) {
+                mLooper = null;
+                for (final Executor.Task task : mTasks) {
+                    success = task.detach() && success;
+                }
             }
         } finally {
             mLock.unlock();

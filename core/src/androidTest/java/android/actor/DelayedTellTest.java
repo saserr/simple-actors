@@ -17,6 +17,7 @@
 package android.actor;
 
 import android.actor.executor.FixedSizeExecutor;
+import android.actor.util.Wait;
 import android.support.annotation.NonNull;
 
 import java.util.ArrayList;
@@ -41,7 +42,7 @@ public class DelayedTellTest extends TestCase {
     public final void setUp() throws Exception {
         super.setUp();
 
-        mExecutor = new FixedSizeExecutor(1);
+        mExecutor = Executors.singleThread();
         mSystem = new System(mExecutor);
     }
 
@@ -62,6 +63,30 @@ public class DelayedTellTest extends TestCase {
 
         final long expected = uptimeMillis() + DELAY_UNIT.toMillis(DELAY);
         assertThat("actor tell", reference.tell(a(RandomInteger), DELAY, DELAY_UNIT), is(true));
+
+        final List<Long> onMessages = actor.getOnMessages(1);
+        assertThat("number of the actor on message invocations", onMessages.size(), is(1));
+        assertThat("actor received message time ", onMessages.get(0), is(greaterThanOrEqualTo(expected)));
+    }
+
+    public final void testTellWithZeroDelay() throws InterruptedException {
+        final MockActor<Integer> actor = new MockActor<>();
+        final Reference<Integer> reference = mSystem.with(isA(RandomString), actor);
+
+        final long expected = uptimeMillis();
+        assertThat("actor tell", reference.tell(a(RandomInteger), 0, DELAY_UNIT), is(true));
+
+        final List<Long> onMessages = actor.getOnMessages(1);
+        assertThat("number of the actor on message invocations", onMessages.size(), is(1));
+        assertThat("actor received message time ", onMessages.get(0), is(greaterThanOrEqualTo(expected)));
+    }
+
+    public final void testTellWithNegativeDelay() throws InterruptedException {
+        final MockActor<Integer> actor = new MockActor<>();
+        final Reference<Integer> reference = mSystem.with(isA(RandomString), actor);
+
+        final long expected = uptimeMillis();
+        assertThat("actor tell", reference.tell(a(RandomInteger), -1, DELAY_UNIT), is(true));
 
         final List<Long> onMessages = actor.getOnMessages(1);
         assertThat("number of the actor on message invocations", onMessages.size(), is(1));
@@ -90,7 +115,7 @@ public class DelayedTellTest extends TestCase {
         final long expected = uptimeMillis() + DELAY_UNIT.toMillis(DELAY);
         assertThat("actor tell", reference.tell(a(RandomInteger), DELAY, DELAY_UNIT), is(true));
 
-        Thread.sleep(DELAY_UNIT.toMillis(DELAY));
+        sleep(2 * DELAY, DELAY_UNIT);
 
         assertThat("system start", mSystem.start(), is(true));
         final List<Long> onMessages = actor.getOnMessages(1);
@@ -106,7 +131,7 @@ public class DelayedTellTest extends TestCase {
         assertThat("actor tell", reference.tell(a(RandomInteger), DELAY, DELAY_UNIT), is(true));
         assertThat("actor stop", reference.stop(), is(true));
 
-        Thread.sleep(DELAY_UNIT.toMillis(DELAY));
+        sleep(2 * DELAY, DELAY_UNIT);
 
         assertThat("actor received messages", actor.getOnMessages(0), is(empty()));
     }
@@ -119,7 +144,7 @@ public class DelayedTellTest extends TestCase {
         final long expected = uptimeMillis() + DELAY_UNIT.toMillis(DELAY);
         assertThat("actor tell", reference.tell(a(RandomInteger), DELAY, DELAY_UNIT), is(true));
 
-        Thread.sleep(DELAY_UNIT.toMillis(DELAY));
+        sleep(2 * DELAY, DELAY_UNIT);
         assertThat("actor stop", reference.stop(), is(true));
 
         final List<Long> onMessages = actor.getOnMessages(1);
@@ -139,8 +164,6 @@ public class DelayedTellTest extends TestCase {
 
     private static class MockActor<M> extends Actor<M> {
 
-        private static final int MAX_WAITS = 10;
-
         private final Object mLock = new Object();
         private final List<Long> mOnMessages = new ArrayList<>(1);
 
@@ -152,8 +175,8 @@ public class DelayedTellTest extends TestCase {
         public final List<Long> getOnMessages(final int expectedSize) throws InterruptedException {
             synchronized (mLock) {
                 int waits = 0;
-                while ((mOnMessages.size() < expectedSize) && (waits < MAX_WAITS)) {
-                    mLock.wait(100);
+                while ((mOnMessages.size() < expectedSize) && (waits < Wait.MAX_REPEATS)) {
+                    mLock.wait(Wait.DELAY);
                     waits++;
                 }
 
@@ -168,6 +191,17 @@ public class DelayedTellTest extends TestCase {
                 mOnMessages.add(now);
                 mLock.notifyAll();
             }
+        }
+    }
+
+    private static void sleep(final long delay, @NonNull final TimeUnit unit) throws InterruptedException {
+        final long start = uptimeMillis();
+        final long end = start + unit.toMillis(delay);
+
+        long now = uptimeMillis();
+        while (now < end) {
+            Thread.sleep(end - now);
+            now = uptimeMillis();
         }
     }
 }

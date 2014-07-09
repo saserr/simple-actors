@@ -16,12 +16,8 @@
 
 package android.actor;
 
-import android.os.Handler;
-import android.os.Looper;
-import android.os.Message;
 import android.support.annotation.IntDef;
 import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
 
 import org.jetbrains.annotations.NonNls;
 
@@ -37,7 +33,6 @@ public class System {
 
     public static final System OnMainThread = new System(Executors.mainThread());
 
-    private static final Executor SINGLE_THREAD = Executors.singleThread();
     @NonNls
     private static final String UNKNOWN_STATE = "Unknown state: ";
     @NonNls
@@ -46,13 +41,9 @@ public class System {
     private final Executor mExecutor;
 
     private final Lock mLock = new ReentrantLock();
-    private final Map<String, Registration<?>> mRegistrations = new HashMap<>();
+    private final Map<String, Reference<?>> mReferences = new HashMap<>();
     @State
     private int mState = State.STARTED;
-
-    public System() {
-        this(SINGLE_THREAD);
-    }
 
     public System(@NonNull final Executor executor) {
         super();
@@ -107,8 +98,8 @@ public class System {
             switch (mState) {
                 case State.PAUSED:
                     mState = State.STARTED;
-                    for (final Registration<?> registration : mRegistrations.values()) {
-                        success = registration.start(mExecutor) && success;
+                    for (final Reference<?> reference : mReferences.values()) {
+                        success = reference.start(mExecutor) && success;
                     }
                     break;
                 case State.STARTED:
@@ -134,8 +125,8 @@ public class System {
             switch (mState) {
                 case State.STARTED:
                     mState = State.PAUSED;
-                    for (final Registration<?> registration : mRegistrations.values()) {
-                        success = registration.pause() && success;
+                    for (final Reference<?> reference : mReferences.values()) {
+                        success = reference.pause() && success;
                     }
                     break;
                 case State.PAUSED:
@@ -162,10 +153,10 @@ public class System {
                 case State.STARTED:
                 case State.PAUSED:
                     mState = State.STOPPED;
-                    for (final Registration<?> registration : mRegistrations.values()) {
-                        success = registration.stop(immediately) && success;
+                    for (final Reference<?> reference : mReferences.values()) {
+                        success = reference.stop(immediately) && success;
                     }
-                    mRegistrations.clear();
+                    mReferences.clear();
                     break;
                 case State.STOPPED:
                     /* do nothing */
@@ -183,26 +174,25 @@ public class System {
     @NonNull
     public final <M> Reference<M> with(@NonNls @NonNull final String name,
                                        @NonNull final Actor<M> actor) {
-        final Reference<M> reference = new Reference<>(name);
+        final Reference<M> reference = new Reference<>(this, name, actor);
 
         mLock.lock();
         try {
             if (mState == State.STOPPED) {
                 throw new UnsupportedOperationException(SYSTEM_STOPPED);
             }
-            if (mRegistrations.containsKey(name)) {
-                throw new IllegalArgumentException("Actor " + name + " is already registered!");
+            if (mReferences.containsKey(name)) {
+                throw new IllegalArgumentException(reference + " is already registered!");
             }
 
-            final Registration<M> registration = new Registration<>(this, reference, actor);
             if (mState == State.STARTED) {
-                if (registration.start(mExecutor)) {
-                    mRegistrations.put(name, registration);
+                if (reference.start(mExecutor)) {
+                    mReferences.put(name, reference);
                 } else {
-                    throw new UnsupportedOperationException("Actor could not be started!");
+                    throw new UnsupportedOperationException(reference + " could not be started!");
                 }
             } else {
-                mRegistrations.put(name, registration);
+                mReferences.put(name, reference);
             }
         } finally {
             mLock.unlock();
@@ -211,18 +201,13 @@ public class System {
         return reference;
     }
 
-    protected final <M> boolean onStop(@NonNull final Registration<M> registration) {
-        final boolean success;
-
+    protected final <M> void onStop(@NonNull final Reference<M> reference) {
         mLock.lock();
         try {
-            final String name = registration.getName();
-            success = !mRegistrations.containsKey(name) || mRegistrations.remove(name).stop(true);
+            mReferences.remove(reference.getName());
         } finally {
             mLock.unlock();
         }
-
-        return success;
     }
 
     @Retention(SOURCE)
@@ -231,155 +216,5 @@ public class System {
         int STARTED = 1;
         int PAUSED = 2;
         int STOPPED = 3;
-    }
-
-    private static class Registration<M> implements Reference.DirectCall<M>, Handler.Callback {
-
-        @NonNull
-        private final System mSystem;
-        @NonNull
-        private final Reference<M> mReference;
-        @NonNull
-        private final Actor<M> mActor;
-
-        private final Executor.Task mTask = new Executor.Task() {
-
-            @Override
-            public boolean attach(@NonNull final Looper looper) {
-                return mReference.onAttach(new Handler(looper, Registration.this));
-            }
-
-            @Override
-            public boolean detach() {
-                final boolean result = mReference.onDetach();
-                mSubmission = null;
-                return result;
-            }
-        };
-
-        private boolean mCanDirectCall = true;
-        @Nullable
-        private Executor.Submission mSubmission;
-
-        private Registration(@NonNull final System system,
-                             @NonNull final Reference<M> reference,
-                             @NonNull final Actor<M> actor) {
-            super();
-
-            mSystem = system;
-            mReference = reference;
-            mActor = actor;
-
-            reference.setDirectCall(this);
-            mActor.postStart(mSystem, mReference);
-        }
-
-        @NonNls
-        @NonNull
-        public final String getName() {
-            return mReference.getName();
-        }
-
-        public final boolean start(@NonNull final Executor executor) {
-            final boolean stopped = (mSubmission == null) || mSubmission.stop();
-            if (stopped) {
-                mSubmission = executor.submit(mTask);
-            }
-            return stopped && (mSubmission != null);
-        }
-
-        public final boolean pause() {
-            return mReference.pause();
-        }
-
-        public final boolean stop(final boolean immediately) {
-            final boolean success;
-
-            if (immediately) {
-                mActor.preStop();
-                mReference.onStop();
-                if (mSubmission == null) {
-                    success = true;
-                } else {
-                    success = mSubmission.stop();
-                    mSubmission = null;
-                }
-            } else {
-                success = mReference.stop();
-            }
-
-            return success;
-        }
-
-        @Override
-        public final boolean handleSystemMessage(final int message) {
-            final boolean processed;
-
-            switch (message) {
-                case Reference.PAUSE:
-                    processed = (mSubmission == null) || mSubmission.stop();
-                    mSubmission = null;
-                    break;
-                case Reference.STOP:
-                    processed = mSystem.onStop(this);
-                    break;
-                default:
-                    processed = false;
-            }
-
-            return processed;
-        }
-
-        @Override
-        public final boolean handleUserMessage(@NonNull final M message) {
-            final boolean success = mCanDirectCall;
-
-            if (success) {
-                mCanDirectCall = false;
-                mActor.onMessage(message);
-                mCanDirectCall = true;
-            }
-
-            return success;
-        }
-
-        @Override
-        @SuppressWarnings("unchecked")
-        public final boolean handleMessage(@NonNull final Message message) {
-            final boolean processed;
-
-            switch (message.what) {
-                case Reference.SYSTEM_MESSAGE:
-                    processed = handleSystemMessage(message.arg1);
-                    break;
-                case Reference.USER_MESSAGE:
-                    processed = handleUserMessage((M) message.obj);
-                    break;
-                default:
-                    processed = false;
-            }
-
-            if (processed) {
-                message.recycle();
-            }
-
-            return processed;
-        }
-
-        @Override
-        public final int hashCode() {
-            return mReference.hashCode();
-        }
-
-        @Override
-        public final boolean equals(@Nullable final Object other) {
-            boolean result = this == other;
-
-            if (!result && (other instanceof Registration<?>)) {
-                result = mReference.equals(((Registration<?>) other).mReference);
-            }
-
-            return result;
-        }
     }
 }

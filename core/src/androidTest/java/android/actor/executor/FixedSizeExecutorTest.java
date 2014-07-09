@@ -18,6 +18,7 @@ package android.actor.executor;
 
 import android.actor.Executor;
 import android.actor.ExecutorTestCase;
+import android.actor.util.Wait;
 import android.os.Looper;
 import android.support.annotation.NonNull;
 
@@ -63,8 +64,6 @@ public class FixedSizeExecutorTest extends ExecutorTestCase {
 
     private static class SpyTask implements Executor.Task {
 
-        private static final int MAX_WAITS = 10;
-
         private final Object mLock = new Object();
         private final List<Looper> mAttachments = new ArrayList<>(1);
 
@@ -76,8 +75,8 @@ public class FixedSizeExecutorTest extends ExecutorTestCase {
         public final List<Looper> getAttachments(final int expectedSize) throws InterruptedException {
             synchronized (mLock) {
                 int waits = 0;
-                while ((mAttachments.size() < expectedSize) && (waits < MAX_WAITS)) {
-                    mLock.wait(100);
+                while ((mAttachments.size() < expectedSize) && (waits < Wait.MAX_REPEATS)) {
+                    mLock.wait(Wait.DELAY);
                     waits++;
                 }
 

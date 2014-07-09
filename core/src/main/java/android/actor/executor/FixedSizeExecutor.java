@@ -75,10 +75,12 @@ public class FixedSizeExecutor implements Executor {
 
     @Override
     public final boolean stop() {
+        boolean success = true;
+
         mLock.lock();
         try {
             for (final Manager manager : mManagers) {
-                manager.stop();
+                success = manager.stop() && success;
             }
             mManagers.clear();
             mStopped = true;
@@ -86,7 +88,7 @@ public class FixedSizeExecutor implements Executor {
             mLock.unlock();
         }
 
-        return true;
+        return success;
     }
 
     private static class Manager extends android.actor.executor.Manager {
@@ -101,8 +103,14 @@ public class FixedSizeExecutor implements Executor {
             mDispatcher.start();
         }
 
-        public final void stop() {
-            mDispatcher.stop();
+        public final boolean stop() {
+            final boolean success = onStop();
+
+            if (success) {
+                mDispatcher.stop();
+            }
+
+            return success;
         }
     }
 }

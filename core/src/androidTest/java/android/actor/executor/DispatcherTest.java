@@ -16,6 +16,7 @@
 
 package android.actor.executor;
 
+import android.actor.util.Wait;
 import android.os.Looper;
 import android.support.annotation.NonNull;
 
@@ -96,8 +97,6 @@ public class DispatcherTest extends TestCase {
 
     private static class SpyCallback implements Dispatcher.Callback {
 
-        private static final int MAX_WAITS = 10;
-
         private final Object mLock = new Object();
 
         private int mStarts = 0;
@@ -110,8 +109,8 @@ public class DispatcherTest extends TestCase {
         public final int getStarts(final int expected) throws InterruptedException {
             synchronized (mLock) {
                 int waits = 0;
-                while ((mStarts < expected) && (waits < MAX_WAITS)) {
-                    mLock.wait(100);
+                while ((mStarts < expected) && (waits < Wait.MAX_REPEATS)) {
+                    mLock.wait(Wait.DELAY);
                     waits++;
                 }
 
@@ -122,8 +121,8 @@ public class DispatcherTest extends TestCase {
         public final int getStops(final int expected) throws InterruptedException {
             synchronized (mLock) {
                 int waits = 0;
-                while ((mStops < expected) && (waits < MAX_WAITS)) {
-                    mLock.wait(100);
+                while ((mStops < expected) && (waits < Wait.MAX_REPEATS)) {
+                    mLock.wait(Wait.DELAY);
                     waits++;
                 }
 
