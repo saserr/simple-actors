@@ -49,7 +49,7 @@ public class FixedSizeExecutor implements Executor {
 
     @Nullable
     @Override
-    public final Submission submit(@NonNull final Task task) {
+    public final Submission submit(@NonNull final Executable executable) {
         Manager best;
 
         mLock.lock();
@@ -70,7 +70,7 @@ public class FixedSizeExecutor implements Executor {
             mLock.unlock();
         }
 
-        return best.submit(task);
+        return best.submit(executable);
     }
 
     @Override

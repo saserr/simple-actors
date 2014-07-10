@@ -16,6 +16,7 @@
 
 package android.actor;
 
+import android.actor.executor.Executable;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
@@ -35,7 +36,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import static android.os.SystemClock.uptimeMillis;
 import static java.lang.Thread.currentThread;
 
-public class Reference<M> implements Executor.Task {
+public class Reference<M> implements Executable {
 
     private static final String TAG = Reference.class.getSimpleName();
 

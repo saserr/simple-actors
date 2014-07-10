@@ -16,6 +16,7 @@
 
 package android.actor;
 
+import android.actor.executor.Executable;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
@@ -393,8 +394,8 @@ public class SystemTest extends TestCase {
 
         @Nullable
         @Override
-        public final Submission submit(@NonNull final Executor.Task task) {
-            final Submission submission = new Submission(task);
+        public final Submission submit(@NonNull final Executable executable) {
+            final Submission submission = new Submission(executable);
             mSubmissions.add(submission);
             return submission;
         }
@@ -407,15 +408,15 @@ public class SystemTest extends TestCase {
         public static class Submission implements Executor.Submission {
 
             @NonNull
-            private final Executor.Task mTask;
+            private final Executable mExecutable;
 
             private boolean mStopped = false;
 
-            public Submission(@NonNull final Executor.Task task) {
+            public Submission(@NonNull final Executable executable) {
                 super();
 
-                mTask = task;
-                mTask.attach(myLooper());
+                mExecutable = executable;
+                mExecutable.attach(myLooper());
             }
 
             public final boolean isStopped() {
@@ -423,13 +424,13 @@ public class SystemTest extends TestCase {
             }
 
             @NonNull
-            public final Executor.Task getTask() {
-                return mTask;
+            public final Executable getExecutable() {
+                return mExecutable;
             }
 
             @Override
             public final boolean stop() {
-                mTask.detach();
+                mExecutable.detach();
                 mStopped = true;
                 return true;
             }

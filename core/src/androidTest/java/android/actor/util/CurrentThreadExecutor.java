@@ -17,6 +17,7 @@
 package android.actor.util;
 
 import android.actor.Executor;
+import android.actor.executor.Executable;
 import android.actor.executor.Manager;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -41,7 +42,7 @@ public class CurrentThreadExecutor implements Executor {
 
     @Nullable
     @Override
-    public final Executor.Submission submit(@NonNull final Task task) {
+    public final Executor.Submission submit(@NonNull final Executable executable) {
         @org.jetbrains.annotations.Nullable final Executor.Submission submission;
 
         mLock.lock();
@@ -50,7 +51,7 @@ public class CurrentThreadExecutor implements Executor {
                 throw new UnsupportedOperationException("Executor is stopped!");
             }
 
-            submission = mManager.submit(task);
+            submission = mManager.submit(executable);
         } finally {
             mLock.unlock();
         }

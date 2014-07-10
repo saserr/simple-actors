@@ -16,7 +16,6 @@
 
 package android.actor;
 
-import android.actor.executor.FixedSizeExecutor;
 import android.actor.util.Wait;
 import android.support.annotation.NonNull;
 

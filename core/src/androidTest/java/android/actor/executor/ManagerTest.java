@@ -49,27 +49,27 @@ public class ManagerTest extends TestCase {
     }
 
     public final void testSubmit() {
-        final SpyTask task = new SpyTask();
-        assertThat("manager submit", mManager.submit(task), is(notNullValue()));
-        assertThat("number of the task attach invocations", task.getAttachments(), is(1));
-        assertThat("number of the task detach invocations", task.getDetachments(), is(0));
+        final SpyExecutable executable = new SpyExecutable();
+        assertThat("manager submit", mManager.submit(executable), is(notNullValue()));
+        assertThat("number of the executable attach invocations", executable.getAttachments(), is(1));
+        assertThat("number of the executable detach invocations", executable.getDetachments(), is(0));
     }
 
-    public final void testDoubleSubmitTask() {
-        final SpyTask task = new SpyTask();
-        assertThat("manager submit", mManager.submit(task), is(notNullValue()));
-        assertThat("manager submit", mManager.submit(task), is(nullValue()));
-        assertThat("number of the task attach invocations", task.getAttachments(), is(1));
-        assertThat("number of the task detach invocations", task.getDetachments(), is(0));
+    public final void testDoubleSubmitExecutable() {
+        final SpyExecutable executable = new SpyExecutable();
+        assertThat("manager submit", mManager.submit(executable), is(notNullValue()));
+        assertThat("manager submit", mManager.submit(executable), is(nullValue()));
+        assertThat("number of the executable attach invocations", executable.getAttachments(), is(1));
+        assertThat("number of the executable detach invocations", executable.getDetachments(), is(0));
     }
 
-    public final void testSubmitTaskThatFailsToAttach() {
-        assertThat("manager submit", mManager.submit(new DummyTask(false, false)), is(nullValue()));
+    public final void testSubmitExecutableThatFailsToAttach() {
+        assertThat("manager submit", mManager.submit(new DummyExecutable(false, false)), is(nullValue()));
     }
 
-    public final void testStopTaskThatFailsToDetach() {
-        final DummyTask task = new DummyTask(true, false);
-        final Executor.Submission submission = mManager.submit(task);
+    public final void testStopExecutableThatFailsToDetach() {
+        final DummyExecutable executable = new DummyExecutable(true, false);
+        final Executor.Submission submission = mManager.submit(executable);
         assertThat("manager submit", submission, is(notNullValue()));
 
         assert submission != null;
@@ -77,81 +77,81 @@ public class ManagerTest extends TestCase {
     }
 
     public final void testStopSubmission() {
-        final SpyTask task = new SpyTask();
-        final Executor.Submission submission = mManager.submit(task);
+        final SpyExecutable executable = new SpyExecutable();
+        final Executor.Submission submission = mManager.submit(executable);
         assertThat("manager submit", submission, is(notNullValue()));
 
         assert submission != null;
         assertThat("submission stop", submission.stop(), is(true));
-        assertThat("number of the task attach invocations", task.getAttachments(), is(1));
-        assertThat("number of the task detach invocations", task.getDetachments(), is(1));
+        assertThat("number of the executable attach invocations", executable.getAttachments(), is(1));
+        assertThat("number of the executable detach invocations", executable.getDetachments(), is(1));
     }
 
     public final void testDoubleStopSubmission() {
-        final SpyTask task = new SpyTask();
-        final Executor.Submission submission = mManager.submit(task);
+        final SpyExecutable executable = new SpyExecutable();
+        final Executor.Submission submission = mManager.submit(executable);
         assertThat("manager submit", submission, is(notNullValue()));
 
         assert submission != null;
         assertThat("submission stop", submission.stop(), is(true));
         assertThat("submission stop", submission.stop(), is(true));
-        assertThat("number of the task attach invocations", task.getAttachments(), is(1));
-        assertThat("number of the task detach invocations", task.getDetachments(), is(1));
+        assertThat("number of the executable attach invocations", executable.getAttachments(), is(1));
+        assertThat("number of the executable detach invocations", executable.getDetachments(), is(1));
     }
 
     public final void testOnStop() {
-        final SpyTask task = new SpyTask();
-        assertThat("manager submit", mManager.submit(task), is(notNullValue()));
+        final SpyExecutable executable = new SpyExecutable();
+        assertThat("manager submit", mManager.submit(executable), is(notNullValue()));
 
         assertThat("manager stop", mManager.onStop(), is(true));
-        assertThat("number of the task attach invocations", task.getAttachments(), is(1));
-        assertThat("number of the task detach invocations", task.getDetachments(), is(1));
+        assertThat("number of the executable attach invocations", executable.getAttachments(), is(1));
+        assertThat("number of the executable detach invocations", executable.getDetachments(), is(1));
     }
 
     public final void testSubmitAfterOnStop() {
         assertThat("manager stop", mManager.onStop(), is(true));
 
-        final SpyTask task = new SpyTask();
-        assertThat("manager submit", mManager.submit(task), is(notNullValue()));
-        assertThat("number of the task attach invocations", task.getAttachments(), is(0));
-        assertThat("number of the task detach invocations", task.getDetachments(), is(0));
+        final SpyExecutable executable = new SpyExecutable();
+        assertThat("manager submit", mManager.submit(executable), is(notNullValue()));
+        assertThat("number of the executable attach invocations", executable.getAttachments(), is(0));
+        assertThat("number of the executable detach invocations", executable.getDetachments(), is(0));
     }
 
     public final void testStopSubmissionAfterOnStop() {
-        final SpyTask task = new SpyTask();
-        final Executor.Submission submission = mManager.submit(task);
+        final SpyExecutable executable = new SpyExecutable();
+        final Executor.Submission submission = mManager.submit(executable);
         assertThat("manager submit", submission, is(notNullValue()));
 
         assert submission != null;
         assertThat("manager stop", mManager.onStop(), is(true));
         assertThat("submission stop", submission.stop(), is(true));
-        assertThat("number of the task attach invocations", task.getAttachments(), is(1));
-        assertThat("number of the task detach invocations", task.getDetachments(), is(1));
+        assertThat("number of the executable attach invocations", executable.getAttachments(), is(1));
+        assertThat("number of the executable detach invocations", executable.getDetachments(), is(1));
     }
 
     public final void testSubmitAfterOnStopAndBeforeOnStart() {
         assertThat("manager stop", mManager.onStop(), is(true));
 
-        final SpyTask task = new SpyTask();
-        assertThat("manager submit", mManager.submit(task), is(notNullValue()));
+        final SpyExecutable executable = new SpyExecutable();
+        assertThat("manager submit", mManager.submit(executable), is(notNullValue()));
 
         assertThat("manager start", mManager.onStart(myLooper()), is(true));
-        assertThat("number of the task attach invocations", task.getAttachments(), is(1));
-        assertThat("number of the task detach invocations", task.getDetachments(), is(0));
+        assertThat("number of the executable attach invocations", executable.getAttachments(), is(1));
+        assertThat("number of the executable detach invocations", executable.getDetachments(), is(0));
     }
 
-    public final void testSubmitTaskThatFailsToAttachAfterOnStopAndBeforeOnStart() {
+    public final void testSubmitExecutableThatFailsToAttachAfterOnStopAndBeforeOnStart() {
         assertThat("manager stop", mManager.onStop(), is(true));
-        assertThat("manager submit", mManager.submit(new DummyTask(false, false)), is(notNullValue()));
+        assertThat("manager submit", mManager.submit(new DummyExecutable(false, false)), is(notNullValue()));
         assertThat("manager start", mManager.onStart(myLooper()), is(false));
     }
 
-    private static class DummyTask implements Executor.Task {
+    private static class DummyExecutable implements Executable {
 
         private final boolean mAttach;
         private final boolean mDetach;
 
-        private DummyTask(final boolean attach, final boolean detach) {
+        private DummyExecutable(final boolean attach, final boolean detach) {
             super();
 
             mAttach = attach;
@@ -169,12 +169,12 @@ public class ManagerTest extends TestCase {
         }
     }
 
-    private static class SpyTask implements Executor.Task {
+    private static class SpyExecutable implements Executable {
 
         private int mAttachments = 0;
         private int mDetachments = 0;
 
-        private SpyTask() {
+        private SpyExecutable() {
             super();
         }
 

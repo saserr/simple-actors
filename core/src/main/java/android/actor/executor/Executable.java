@@ -14,20 +14,14 @@
  * limitations under the License.
  */
 
-package android.actor;
+package android.actor.executor;
 
-import android.actor.executor.Executable;
+import android.os.Looper;
 import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
 
-public interface Executor {
+public interface Executable {
 
-    @Nullable
-    Submission submit(@NonNull final Executable executable);
+    boolean attach(@NonNull final Looper looper);
 
-    boolean stop();
-
-    interface Submission {
-        boolean stop();
-    }
+    boolean detach();
 }

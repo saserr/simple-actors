@@ -46,28 +46,28 @@ public class FixedSizeExecutorTest extends ExecutorTestCase {
         } catch (final IllegalArgumentException ignored) {/* expected */}
     }
 
-    public final void testTasksGetDifferentLoopers() throws InterruptedException {
+    public final void testExecutablesGetDifferentLoopers() throws InterruptedException {
         final FixedSizeExecutor executor = new FixedSizeExecutor(2);
-        final SpyTask task1 = new SpyTask();
-        final SpyTask task2 = new SpyTask();
-        assertThat("executor submit 1st task", executor.submit(task1), is(notNullValue()));
-        assertThat("executor submit 2nd task", executor.submit(task2), is(notNullValue()));
+        final SpyExecutable executable1 = new SpyExecutable();
+        final SpyExecutable executable2 = new SpyExecutable();
+        assertThat("executor submit 1st executable", executor.submit(executable1), is(notNullValue()));
+        assertThat("executor submit 2nd executable", executor.submit(executable2), is(notNullValue()));
 
-        final List<Looper> attachments1 = task1.getAttachments(1);
-        assertThat("number of the 1st task attach invocations", attachments1.size(), is(1));
+        final List<Looper> attachments1 = executable1.getAttachments(1);
+        assertThat("number of the 1st executable attach invocations", attachments1.size(), is(1));
 
-        final List<Looper> attachments2 = task2.getAttachments(1);
-        assertThat("number of the 1st task attach invocations", attachments2.size(), is(1));
+        final List<Looper> attachments2 = executable2.getAttachments(1);
+        assertThat("number of the 1st executable attach invocations", attachments2.size(), is(1));
 
-        assertThat("1st task looper", attachments1.get(0), is(not(attachments2.get(0))));
+        assertThat("1st executable looper", attachments1.get(0), is(not(attachments2.get(0))));
     }
 
-    private static class SpyTask implements Executor.Task {
+    private static class SpyExecutable implements Executable {
 
         private final Object mLock = new Object();
         private final List<Looper> mAttachments = new ArrayList<>(1);
 
-        private SpyTask() {
+        private SpyExecutable() {
             super();
         }
 

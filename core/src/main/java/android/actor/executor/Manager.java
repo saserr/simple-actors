@@ -29,7 +29,7 @@ import java.util.concurrent.locks.ReentrantLock;
 public class Manager implements Dispatcher.Callback {
 
     private final Lock mLock = new ReentrantLock();
-    private final Collection<Executor.Task> mTasks = new HashSet<>();
+    private final Collection<Executable> mExecutables = new HashSet<>();
 
     @Nullable
     private Looper mLooper;
@@ -43,7 +43,7 @@ public class Manager implements Dispatcher.Callback {
 
         mLock.lock();
         try {
-            result = mTasks.isEmpty();
+            result = mExecutables.isEmpty();
         } finally {
             mLock.unlock();
         }
@@ -56,7 +56,7 @@ public class Manager implements Dispatcher.Callback {
 
         mLock.lock();
         try {
-            result = mTasks.size();
+            result = mExecutables.size();
         } finally {
             mLock.unlock();
         }
@@ -71,10 +71,10 @@ public class Manager implements Dispatcher.Callback {
         mLock.lock();
         try {
             mLooper = looper;
-            for (final Executor.Task task : mTasks) {
-                success = task.attach(looper) && success;
+            for (final Executable executable : mExecutables) {
+                success = executable.attach(looper) && success;
                 if (!success) {
-                    mTasks.remove(task);
+                    mExecutables.remove(executable);
                 }
             }
         } finally {
@@ -92,8 +92,8 @@ public class Manager implements Dispatcher.Callback {
         try {
             if (mLooper != null) {
                 mLooper = null;
-                for (final Executor.Task task : mTasks) {
-                    success = task.detach() && success;
+                for (final Executable executable : mExecutables) {
+                    success = executable.detach() && success;
                 }
             }
         } finally {
@@ -104,13 +104,13 @@ public class Manager implements Dispatcher.Callback {
     }
 
     @Nullable
-    public final Executor.Submission submit(@NonNull final Executor.Task task) {
+    public final Executor.Submission submit(@NonNull final Executable executable) {
         @org.jetbrains.annotations.Nullable final Executor.Submission submission;
 
         mLock.lock();
         try {
-            if (mTasks.add(task)) {
-                if ((mLooper == null) || task.attach(mLooper)) {
+            if (mExecutables.add(executable)) {
+                if ((mLooper == null) || executable.attach(mLooper)) {
                     submission = new Executor.Submission() {
                         @Override
                         public boolean stop() {
@@ -118,10 +118,10 @@ public class Manager implements Dispatcher.Callback {
 
                             mLock.lock();
                             try {
-                                if (mTasks.remove(task)) {
-                                    success = (mLooper == null) || task.detach();
+                                if (mExecutables.remove(executable)) {
+                                    success = (mLooper == null) || executable.detach();
                                     if (!success) {
-                                        mTasks.add(task);
+                                        mExecutables.add(executable);
                                     }
                                 } else {
                                     success = true;
@@ -134,7 +134,7 @@ public class Manager implements Dispatcher.Callback {
                         }
                     };
                 } else {
-                    mTasks.remove(task);
+                    mExecutables.remove(executable);
                     submission = null;
                 }
             } else {

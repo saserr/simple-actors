@@ -16,6 +16,7 @@
 
 package android.actor;
 
+import android.actor.executor.Executable;
 import android.actor.util.Wait;
 import android.os.Looper;
 import android.support.annotation.NonNull;
@@ -50,94 +51,94 @@ public abstract class ExecutorTestCase extends TestCase {
     }
 
     public final void testSubmit() throws InterruptedException {
-        final SpyTask task = new SpyTask();
-        assertThat("executor submit", mExecutor.submit(task), is(notNullValue()));
-        assertThat("number of the task attach invocations", task.getAttachments(1), is(1));
-        assertThat("number of the task detach invocations", task.getDetachments(0), is(0));
+        final SpyExecutable executable = new SpyExecutable();
+        assertThat("executor submit", mExecutor.submit(executable), is(notNullValue()));
+        assertThat("number of the executable attach invocations", executable.getAttachments(1), is(1));
+        assertThat("number of the executable detach invocations", executable.getDetachments(0), is(0));
     }
 
-    public final void testDoubleSubmitTask() throws InterruptedException {
-        final SpyTask task = new SpyTask();
-        assertThat("executor submit", mExecutor.submit(task), is(notNullValue()));
-        assertThat("executor submit", mExecutor.submit(task), is(nullValue()));
-        assertThat("number of the task attach invocations", task.getAttachments(1), is(1));
-        assertThat("number of the task detach invocations", task.getDetachments(0), is(0));
+    public final void testDoubleSubmitExecutable() throws InterruptedException {
+        final SpyExecutable executable = new SpyExecutable();
+        assertThat("executor submit", mExecutor.submit(executable), is(notNullValue()));
+        assertThat("executor submit", mExecutor.submit(executable), is(nullValue()));
+        assertThat("number of the executable attach invocations", executable.getAttachments(1), is(1));
+        assertThat("number of the executable detach invocations", executable.getDetachments(0), is(0));
     }
 
     public final void testStopSubmission() throws InterruptedException {
-        final SpyTask task = new SpyTask();
-        final Executor.Submission submission = mExecutor.submit(task);
+        final SpyExecutable executable = new SpyExecutable();
+        final Executor.Submission submission = mExecutor.submit(executable);
         assertThat("executor submit", submission, is(notNullValue()));
 
         assert submission != null;
         assertThat("submission stop", submission.stop(), is(true));
-        assertThat("number of the task attach invocations", task.getAttachments(1), is(1));
-        assertThat("number of the task detach invocations", task.getDetachments(1), is(1));
+        assertThat("number of the executable attach invocations", executable.getAttachments(1), is(1));
+        assertThat("number of the executable detach invocations", executable.getDetachments(1), is(1));
     }
 
     public final void testDoubleStopSubmission() throws InterruptedException {
-        final SpyTask task = new SpyTask();
-        final Executor.Submission submission = mExecutor.submit(task);
+        final SpyExecutable executable = new SpyExecutable();
+        final Executor.Submission submission = mExecutor.submit(executable);
         assertThat("executor submit", submission, is(notNullValue()));
 
         assert submission != null;
         assertThat("submission stop", submission.stop(), is(true));
         assertThat("submission stop", submission.stop(), is(true));
-        assertThat("number of the task attach invocations", task.getAttachments(1), is(1));
-        assertThat("number of the task detach invocations", task.getDetachments(1), is(1));
+        assertThat("number of the executable attach invocations", executable.getAttachments(1), is(1));
+        assertThat("number of the executable detach invocations", executable.getDetachments(1), is(1));
     }
 
     public final void testStopExecutor() throws InterruptedException {
-        final SpyTask task = new SpyTask();
-        assertThat("executor submit", mExecutor.submit(task), is(notNullValue()));
+        final SpyExecutable executable = new SpyExecutable();
+        assertThat("executor submit", mExecutor.submit(executable), is(notNullValue()));
 
         assertThat("executor stop", mExecutor.stop(), is(true));
-        assertThat("number of the task attach invocations", task.getAttachments(1), is(1));
-        assertThat("number of the task detach invocations", task.getDetachments(1), is(1));
+        assertThat("number of the executable attach invocations", executable.getAttachments(1), is(1));
+        assertThat("number of the executable detach invocations", executable.getDetachments(1), is(1));
     }
 
     public final void testDoubleStopExecutor() throws InterruptedException {
-        final SpyTask task = new SpyTask();
-        assertThat("executor submit", mExecutor.submit(task), is(notNullValue()));
+        final SpyExecutable executable = new SpyExecutable();
+        assertThat("executor submit", mExecutor.submit(executable), is(notNullValue()));
 
         assertThat("executor stop", mExecutor.stop(), is(true));
         assertThat("executor stop", mExecutor.stop(), is(true));
-        assertThat("number of the task attach invocations", task.getAttachments(1), is(1));
-        assertThat("number of the task detach invocations", task.getDetachments(1), is(1));
+        assertThat("number of the executable attach invocations", executable.getAttachments(1), is(1));
+        assertThat("number of the executable detach invocations", executable.getDetachments(1), is(1));
     }
 
     public final void testStopSubmissionAndExecutor() throws InterruptedException {
-        final SpyTask task = new SpyTask();
-        final Executor.Submission submission = mExecutor.submit(task);
+        final SpyExecutable executable = new SpyExecutable();
+        final Executor.Submission submission = mExecutor.submit(executable);
         assertThat("executor submit", submission, is(notNullValue()));
 
         assert submission != null;
         assertThat("submission stop", submission.stop(), is(true));
         assertThat("executor stop", mExecutor.stop(), is(true));
-        assertThat("number of the task attach invocations", task.getAttachments(1), is(1));
-        assertThat("number of the task detach invocations", task.getDetachments(1), is(1));
+        assertThat("number of the executable attach invocations", executable.getAttachments(1), is(1));
+        assertThat("number of the executable detach invocations", executable.getDetachments(1), is(1));
     }
 
     public final void testSubmitAfterStop() throws InterruptedException {
         assertThat("executor stop", mExecutor.stop(), is(true));
-        final SpyTask task = new SpyTask();
+        final SpyExecutable executable = new SpyExecutable();
         try {
-            assertThat("executor submit", mExecutor.submit(task), is(notNullValue()));
-            fail("submitting of task did not throw UnsupportedOperationException");
+            assertThat("executor submit", mExecutor.submit(executable), is(notNullValue()));
+            fail("submitting executable did not throw UnsupportedOperationException");
         } catch (final UnsupportedOperationException ignored) {/* expected */}
 
-        assertThat("number of the task attach invocations", task.getAttachments(0), is(0));
-        assertThat("number of the task detach invocations", task.getDetachments(0), is(0));
+        assertThat("number of the executable attach invocations", executable.getAttachments(0), is(0));
+        assertThat("number of the executable detach invocations", executable.getDetachments(0), is(0));
     }
 
-    private static class SpyTask implements Executor.Task {
+    private static class SpyExecutable implements Executable {
 
         private final Object mLock = new Object();
 
         private int mAttachments = 0;
         private int mDetachments = 0;
 
-        private SpyTask() {
+        private SpyExecutable() {
             super();
         }
 
