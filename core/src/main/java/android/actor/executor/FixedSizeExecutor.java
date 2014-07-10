@@ -19,6 +19,7 @@ package android.actor.executor;
 import android.actor.Executor;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.util.Log;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,6 +27,8 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class FixedSizeExecutor implements Executor {
+
+    private static final String TAG = FixedSizeExecutor.class.getSimpleName();
 
     @NonNull
     private final List<Manager> mManagers;
@@ -108,6 +111,8 @@ public class FixedSizeExecutor implements Executor {
 
             if (success) {
                 mDispatcher.stop();
+            } else {
+                Log.w(TAG, "Manager failed to stop"); //NON-NLS
             }
 
             return success;

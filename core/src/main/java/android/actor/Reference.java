@@ -20,12 +20,14 @@ import android.actor.executor.Executable;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+import android.support.annotation.IntDef;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.util.Log;
 
 import org.jetbrains.annotations.NonNls;
 
+import java.lang.annotation.Retention;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.concurrent.Semaphore;
@@ -35,18 +37,13 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import static android.os.SystemClock.uptimeMillis;
 import static java.lang.Thread.currentThread;
+import static java.lang.annotation.RetentionPolicy.SOURCE;
 
 public class Reference<M> implements Executable {
 
     private static final String TAG = Reference.class.getSimpleName();
 
     private static final long NO_DELAY = 0;
-
-    private static final int SYSTEM_MESSAGE = 1;
-    private static final int USER_MESSAGE = 2;
-
-    private static final int PAUSE = 1;
-    private static final int STOP = 2;
 
     @NonNull
     private final System mSystem;
@@ -152,13 +149,14 @@ public class Reference<M> implements Executable {
         mLock.lock();
         try {
             if (!mStopped && (mHandler == null) && (mTask != null)) {
+                Log.d(TAG, this + " will push pending messages before stop"); //NON-NLS
                 PendingMessage<M> message = mPendingMessages.poll();
                 while (message != null) {
                     message.send(mTask);
                     message = mPendingMessages.poll();
                 }
             }
-            success = mStopped || send(STOP);
+            success = mStopped || send(SystemMessage.STOP);
             mStopped = true;
         } finally {
             mLock.unlock();
@@ -176,6 +174,7 @@ public class Reference<M> implements Executable {
             success = (mTask != null) && ((mHandler == null) || !hasUndeliveredMessages(mHandler));
             if (success) {
                 mHandler = new Handler(looper, mTask);
+                Log.d(TAG, this + " will send pending messages"); //NON-NLS
                 PendingMessage<M> message = mPendingMessages.poll();
                 while (message != null) {
                     message.send(mHandler, mTask);
@@ -184,6 +183,10 @@ public class Reference<M> implements Executable {
             }
         } finally {
             mLock.unlock();
+        }
+
+        if (success) {
+            Log.d(TAG, this + " attached to new looper"); //NON-NLS
         }
 
         return success;
@@ -196,15 +199,21 @@ public class Reference<M> implements Executable {
         mLock.lock();
         try {
             if (mStopped && (mHandler != null)) {
-                mHandler.removeMessages(USER_MESSAGE);
-                mHandler.removeMessages(SYSTEM_MESSAGE);
+                Log.d(TAG, this + " removing all pending messages from the handler"); //NON-NLS
+                mHandler.removeMessages(MessageType.SYSTEM);
+                mHandler.removeMessages(MessageType.USER);
             }
-            success = !hasUndeliveredMessages(mHandler);
+
+            success = (mHandler == null) || !hasUndeliveredMessages(mHandler);
             if (success) {
                 mHandler = null;
             }
         } finally {
             mLock.unlock();
+        }
+
+        if (success) {
+            Log.d(TAG, this + " detached from the looper"); //NON-NLS
         }
 
         return success;
@@ -281,6 +290,10 @@ public class Reference<M> implements Executable {
             mLock.unlock();
         }
 
+        if (success) {
+            Log.i(TAG, this + " started"); //NON-NLS
+        }
+
         return success;
     }
 
@@ -293,12 +306,16 @@ public class Reference<M> implements Executable {
                 throw new UnsupportedOperationException(mActorStopped);
             }
 
-            success = (mHandler == null) || send(PAUSE);
+            success = (mHandler == null) || send(SystemMessage.PAUSE);
             if (success) {
                 mHandler = null;
             }
         } finally {
             mLock.unlock();
+        }
+
+        if (success) {
+            Log.i(TAG, this + " paused"); //NON-NLS
         }
 
         return success;
@@ -318,14 +335,6 @@ public class Reference<M> implements Executable {
                     success = true;
                 } else {
                     mActor.preStop();
-
-                    if (mHandler != null) {
-                        mHandler.removeMessages(USER_MESSAGE);
-                        mHandler.removeMessages(SYSTEM_MESSAGE);
-                    }
-                    mPendingMessages.clear();
-                    mHandler = null;
-
                     success = mTask.stop();
                 }
             } catch (final Throwable error) {
@@ -337,22 +346,40 @@ public class Reference<M> implements Executable {
             success = stop();
         }
 
+        if (success) {
+            Log.i(TAG, this + " stopped"); //NON-NLS
+        }
+
         return success;
     }
 
-    private static boolean hasUndeliveredMessages(@Nullable final Handler handler) {
-        return (handler != null) && (handler.hasMessages(SYSTEM_MESSAGE) || handler.hasMessages(USER_MESSAGE));
+    private static boolean hasUndeliveredMessages(@NonNull final Handler handler) {
+        return handler.hasMessages(MessageType.SYSTEM) || handler.hasMessages(MessageType.USER);
     }
 
     private static boolean send(@NonNull final Handler handler, final int message) {
-        return handler.sendMessage(handler.obtainMessage(SYSTEM_MESSAGE, message, 0));
+        return handler.sendMessage(handler.obtainMessage(MessageType.SYSTEM, message, 0));
     }
 
     private static <M> boolean send(@NonNull final Handler handler,
                                     @NonNull final M message,
                                     final long delay) {
-        final Message msg = handler.obtainMessage(USER_MESSAGE, message);
+        final Message msg = handler.obtainMessage(MessageType.USER, message);
         return (delay > 0) ? handler.sendMessageDelayed(msg, delay) : handler.sendMessage(msg);
+    }
+
+    @Retention(SOURCE)
+    @IntDef({MessageType.SYSTEM, MessageType.USER})
+    private @interface MessageType {
+        int SYSTEM = 1;
+        int USER = 2;
+    }
+
+    @Retention(SOURCE)
+    @IntDef({SystemMessage.PAUSE, SystemMessage.STOP})
+    private @interface SystemMessage {
+        int PAUSE = 1;
+        int STOP = 2;
     }
 
     private interface PendingMessage<M> {
@@ -468,10 +495,10 @@ public class Reference<M> implements Executable {
             final boolean processed;
 
             switch (message.what) {
-                case SYSTEM_MESSAGE:
+                case MessageType.SYSTEM:
                     processed = handleSystemMessage(message.arg1);
                     break;
-                case USER_MESSAGE:
+                case MessageType.USER:
                     processed = handleUserMessage((M) message.obj);
                     break;
                 default:
@@ -498,22 +525,30 @@ public class Reference<M> implements Executable {
                 }
             }
 
+            if (success) {
+                Log.d(TAG, mReference + " handled user message " + message); //NON-NLS
+            }
+
             return success;
         }
 
-        public final boolean handleSystemMessage(final int message) {
+        public final boolean handleSystemMessage(@NonNls final int message) {
             final boolean processed;
 
             switch (message) {
-                case PAUSE:
+                case SystemMessage.PAUSE:
                     processed = (mSubmission == null) || mSubmission.stop();
                     mSubmission = null;
                     break;
-                case STOP:
+                case SystemMessage.STOP:
                     processed = mReference.stop(true);
                     break;
                 default:
                     processed = false;
+            }
+
+            if (processed) {
+                Log.d(TAG, mReference + " handled system message " + message); //NON-NLS
             }
 
             return processed;

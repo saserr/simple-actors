@@ -18,6 +18,7 @@ package android.actor;
 
 import android.support.annotation.IntDef;
 import android.support.annotation.NonNull;
+import android.util.Log;
 
 import org.jetbrains.annotations.NonNls;
 
@@ -32,6 +33,8 @@ import static java.lang.annotation.RetentionPolicy.SOURCE;
 public class System {
 
     public static final System OnMainThread = new System(Executors.mainThread());
+
+    private static final String TAG = System.class.getSimpleName();
 
     @NonNls
     private static final String UNKNOWN_STATE = "Unknown state: ";
@@ -99,7 +102,10 @@ public class System {
                 case State.PAUSED:
                     mState = State.STARTED;
                     for (final Reference<?> reference : mReferences.values()) {
-                        success = reference.start(mExecutor) && success;
+                        if (!reference.start(mExecutor)) {
+                            Log.w(TAG, reference + " failed to start"); //NON-NLS
+                            success = false;
+                        }
                     }
                     break;
                 case State.STARTED:
@@ -126,7 +132,10 @@ public class System {
                 case State.STARTED:
                     mState = State.PAUSED;
                     for (final Reference<?> reference : mReferences.values()) {
-                        success = reference.pause() && success;
+                        if (!reference.pause()) {
+                            Log.w(TAG, reference + " failed to pause"); //NON-NLS
+                            success = false;
+                        }
                     }
                     break;
                 case State.PAUSED:
@@ -154,7 +163,10 @@ public class System {
                 case State.PAUSED:
                     mState = State.STOPPED;
                     for (final Reference<?> reference : mReferences.values()) {
-                        success = reference.stop(immediately) && success;
+                        if (!reference.stop(immediately)) {
+                            Log.w(TAG, reference + " failed to stop"); //NON-NLS
+                            success = false;
+                        }
                     }
                     mReferences.clear();
                     break;
@@ -194,6 +206,8 @@ public class System {
             } else {
                 mReferences.put(name, reference);
             }
+
+            Log.d(TAG, reference + " added"); //NON-NLS
         } finally {
             mLock.unlock();
         }
@@ -205,6 +219,7 @@ public class System {
         mLock.lock();
         try {
             mReferences.remove(reference.getName());
+            Log.d(TAG, reference + " removed"); //NON-NLS
         } finally {
             mLock.unlock();
         }

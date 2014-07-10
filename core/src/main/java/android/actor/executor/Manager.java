@@ -20,6 +20,9 @@ import android.actor.Executor;
 import android.os.Looper;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.util.Log;
+
+import org.jetbrains.annotations.NonNls;
 
 import java.util.Collection;
 import java.util.HashSet;
@@ -27,6 +30,8 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class Manager implements Dispatcher.Callback {
+
+    private static final String TAG = Manager.class.getSimpleName();
 
     private final Lock mLock = new ReentrantLock();
     private final Collection<Executable> mExecutables = new HashSet<>();
@@ -72,9 +77,9 @@ public class Manager implements Dispatcher.Callback {
         try {
             mLooper = looper;
             for (final Executable executable : mExecutables) {
-                success = executable.attach(looper) && success;
-                if (!success) {
-                    mExecutables.remove(executable);
+                if (!executable.attach(looper)) {
+                    Log.w(TAG, executable + " failed to attach"); //NON-NLS
+                    success = false;
                 }
             }
         } finally {
@@ -93,7 +98,10 @@ public class Manager implements Dispatcher.Callback {
             if (mLooper != null) {
                 mLooper = null;
                 for (final Executable executable : mExecutables) {
-                    success = executable.detach() && success;
+                    if (!executable.detach()) {
+                        Log.w(TAG, executable + " failed to detach"); //NON-NLS
+                        success = false;
+                    }
                 }
             }
         } finally {
@@ -104,13 +112,14 @@ public class Manager implements Dispatcher.Callback {
     }
 
     @Nullable
-    public final Executor.Submission submit(@NonNull final Executable executable) {
+    public final Executor.Submission submit(@NonNls @NonNull final Executable executable) {
         @org.jetbrains.annotations.Nullable final Executor.Submission submission;
 
         mLock.lock();
         try {
             if (mExecutables.add(executable)) {
                 if ((mLooper == null) || executable.attach(mLooper)) {
+                    Log.d(TAG, executable + " submitted"); //NON-NLS
                     submission = new Executor.Submission() {
                         @Override
                         public boolean stop() {
@@ -121,6 +130,7 @@ public class Manager implements Dispatcher.Callback {
                                 if (mExecutables.remove(executable)) {
                                     success = (mLooper == null) || executable.detach();
                                     if (!success) {
+                                        Log.w(TAG, "Submission for " + executable + " failed to be stopped"); //NON-NLS
                                         mExecutables.add(executable);
                                     }
                                 } else {
@@ -134,10 +144,12 @@ public class Manager implements Dispatcher.Callback {
                         }
                     };
                 } else {
+                    Log.w(TAG, executable + " failed to be attached"); //NON-NLS
                     mExecutables.remove(executable);
                     submission = null;
                 }
             } else {
+                Log.i(TAG, executable + " already submitted"); //NON-NLS
                 submission = null;
             }
         } finally {
