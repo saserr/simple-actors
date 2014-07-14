@@ -16,15 +16,23 @@
 
 package android.actor.executor;
 
-import android.actor.Executor;
-import android.actor.ExecutorTestCase;
-import android.actor.Executors;
+import android.os.Looper;
 import android.support.annotation.NonNull;
 
-public class MainThreadExecutorTest extends ExecutorTestCase {
+public final class Messengers {
+
     @NonNull
-    @Override
-    protected final Executor create() {
-        return Executors.mainThread();
+    public static Messenger.Factory from(@NonNull final Looper looper) {
+        return new Messenger.Factory() {
+            @NonNull
+            @Override
+            public <M> Messenger<M> create(@NonNull final Messenger.Callback<M> callback) {
+                return new LooperMessenger<>(looper, callback);
+            }
+        };
+    }
+
+    private Messengers() {
+        super();
     }
 }

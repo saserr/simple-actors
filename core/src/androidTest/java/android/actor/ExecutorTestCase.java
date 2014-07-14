@@ -17,8 +17,8 @@
 package android.actor;
 
 import android.actor.executor.Executable;
+import android.actor.executor.Messenger;
 import android.actor.util.Wait;
-import android.os.Looper;
 import android.support.annotation.NonNull;
 
 import junit.framework.TestCase;
@@ -33,7 +33,7 @@ public abstract class ExecutorTestCase extends TestCase {
     private Executor mExecutor;
 
     @NonNull
-    protected abstract Executor create();
+    protected abstract Executor create() throws InterruptedException;
 
     @Override
     public final void setUp() throws Exception {
@@ -92,7 +92,7 @@ public abstract class ExecutorTestCase extends TestCase {
         final SpyExecutable executable = new SpyExecutable();
         assertThat("executor submit", mExecutor.submit(executable), is(notNullValue()));
 
-        assertThat("executor stop", mExecutor.stop(), is(true));
+        mExecutor.stop();
         assertThat("number of the executable attach invocations", executable.getAttachments(1), is(1));
         assertThat("number of the executable detach invocations", executable.getDetachments(1), is(1));
     }
@@ -101,8 +101,8 @@ public abstract class ExecutorTestCase extends TestCase {
         final SpyExecutable executable = new SpyExecutable();
         assertThat("executor submit", mExecutor.submit(executable), is(notNullValue()));
 
-        assertThat("executor stop", mExecutor.stop(), is(true));
-        assertThat("executor stop", mExecutor.stop(), is(true));
+        mExecutor.stop();
+        mExecutor.stop();
         assertThat("number of the executable attach invocations", executable.getAttachments(1), is(1));
         assertThat("number of the executable detach invocations", executable.getDetachments(1), is(1));
     }
@@ -114,13 +114,13 @@ public abstract class ExecutorTestCase extends TestCase {
 
         assert submission != null;
         assertThat("submission stop", submission.stop(), is(true));
-        assertThat("executor stop", mExecutor.stop(), is(true));
+        mExecutor.stop();
         assertThat("number of the executable attach invocations", executable.getAttachments(1), is(1));
         assertThat("number of the executable detach invocations", executable.getDetachments(1), is(1));
     }
 
     public final void testSubmitAfterStop() throws InterruptedException {
-        assertThat("executor stop", mExecutor.stop(), is(true));
+        mExecutor.stop();
         final SpyExecutable executable = new SpyExecutable();
         try {
             assertThat("executor submit", mExecutor.submit(executable), is(notNullValue()));
@@ -167,7 +167,7 @@ public abstract class ExecutorTestCase extends TestCase {
         }
 
         @Override
-        public final boolean attach(@NonNull final Looper looper) {
+        public final boolean attach(@NonNull final Messenger.Factory factory) {
             synchronized (mLock) {
                 mAttachments++;
                 mLock.notifyAll();

@@ -17,6 +17,7 @@
 package android.actor;
 
 import android.actor.executor.Executable;
+import android.actor.executor.Messengers;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
@@ -401,9 +402,7 @@ public class SystemTest extends TestCase {
         }
 
         @Override
-        public final boolean stop() {
-            return true;
-        }
+        public final void stop() {/* do nothing */}
 
         public static class Submission implements Executor.Submission {
 
@@ -416,7 +415,7 @@ public class SystemTest extends TestCase {
                 super();
 
                 mExecutable = executable;
-                mExecutable.attach(myLooper());
+                mExecutable.attach(Messengers.from(myLooper()));
             }
 
             public final boolean isStopped() {

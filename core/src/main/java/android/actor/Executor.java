@@ -25,7 +25,7 @@ public interface Executor {
     @Nullable
     Submission submit(@NonNull final Executable executable);
 
-    boolean stop();
+    void stop();
 
     interface Submission {
         boolean stop();

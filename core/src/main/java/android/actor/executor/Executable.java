@@ -16,12 +16,11 @@
 
 package android.actor.executor;
 
-import android.os.Looper;
 import android.support.annotation.NonNull;
 
 public interface Executable {
 
-    boolean attach(@NonNull final Looper looper);
+    boolean attach(@NonNull final Messenger.Factory factory);
 
     boolean detach();
 }

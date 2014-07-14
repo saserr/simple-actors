@@ -23,8 +23,8 @@ import android.util.Log;
 import org.jetbrains.annotations.NonNls;
 
 import java.lang.annotation.Retention;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -44,7 +44,7 @@ public class System {
     private final Executor mExecutor;
 
     private final Lock mLock = new ReentrantLock();
-    private final Map<String, Reference<?>> mReferences = new HashMap<>();
+    private final Set<Reference<?>> mReferences = new HashSet<>();
     @State
     private int mState = State.STARTED;
 
@@ -101,7 +101,7 @@ public class System {
             switch (mState) {
                 case State.PAUSED:
                     mState = State.STARTED;
-                    for (final Reference<?> reference : mReferences.values()) {
+                    for (final Reference<?> reference : mReferences) {
                         if (!reference.start(mExecutor)) {
                             Log.w(TAG, reference + " failed to start"); //NON-NLS
                             success = false;
@@ -131,7 +131,7 @@ public class System {
             switch (mState) {
                 case State.STARTED:
                     mState = State.PAUSED;
-                    for (final Reference<?> reference : mReferences.values()) {
+                    for (final Reference<?> reference : mReferences) {
                         if (!reference.pause()) {
                             Log.w(TAG, reference + " failed to pause"); //NON-NLS
                             success = false;
@@ -162,7 +162,7 @@ public class System {
                 case State.STARTED:
                 case State.PAUSED:
                     mState = State.STOPPED;
-                    for (final Reference<?> reference : mReferences.values()) {
+                    for (final Reference<?> reference : mReferences) {
                         if (!reference.stop(immediately)) {
                             Log.w(TAG, reference + " failed to stop"); //NON-NLS
                             success = false;
@@ -193,18 +193,18 @@ public class System {
             if (mState == State.STOPPED) {
                 throw new UnsupportedOperationException(SYSTEM_STOPPED);
             }
-            if (mReferences.containsKey(name)) {
+            if (mReferences.contains(reference)) {
                 throw new IllegalArgumentException(reference + " is already registered!");
             }
 
             if (mState == State.STARTED) {
                 if (reference.start(mExecutor)) {
-                    mReferences.put(name, reference);
+                    mReferences.add(reference);
                 } else {
                     throw new UnsupportedOperationException(reference + " could not be started!");
                 }
             } else {
-                mReferences.put(name, reference);
+                mReferences.add(reference);
             }
 
             Log.d(TAG, reference + " added"); //NON-NLS
@@ -218,7 +218,7 @@ public class System {
     protected final <M> void onStop(@NonNull final Reference<M> reference) {
         mLock.lock();
         try {
-            mReferences.remove(reference.getName());
+            mReferences.remove(reference);
             Log.d(TAG, reference + " removed"); //NON-NLS
         } finally {
             mLock.unlock();

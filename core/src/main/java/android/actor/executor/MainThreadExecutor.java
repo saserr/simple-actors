@@ -20,7 +20,6 @@ import android.actor.Executor;
 import android.os.Looper;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-import android.util.Log;
 
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -29,7 +28,6 @@ import static android.os.Looper.getMainLooper;
 
 public class MainThreadExecutor implements Executor {
 
-    private static final String TAG = MainThreadExecutor.class.getSimpleName();
     private static final Looper MAIN_THREAD = getMainLooper();
 
     private final Lock mLock = new ReentrantLock();
@@ -45,8 +43,8 @@ public class MainThreadExecutor implements Executor {
 
     @Nullable
     @Override
-    public final Executor.Submission submit(@NonNull final Executable executable) {
-        @org.jetbrains.annotations.Nullable final Executor.Submission submission;
+    public final Submission submit(@NonNull final Executable executable) {
+        @org.jetbrains.annotations.Nullable final Submission submission;
 
         mLock.lock();
         try {
@@ -64,24 +62,16 @@ public class MainThreadExecutor implements Executor {
     }
 
     @Override
-    public final boolean stop() {
-        boolean success = true;
-
+    public final void stop() {
         mLock.lock();
         try {
             if (!mStopped) {
-                success = mManager.onStop();
+                mManager.onStop();
                 mManager = null;
                 mStopped = true;
             }
         } finally {
             mLock.unlock();
         }
-
-        if (!success) {
-            Log.w(TAG, "Failed to stop"); //NON-NLS
-        }
-
-        return success;
     }
 }

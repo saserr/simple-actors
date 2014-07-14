@@ -37,7 +37,7 @@ public class Manager implements Dispatcher.Callback {
     private final Collection<Executable> mExecutables = new HashSet<>();
 
     @Nullable
-    private Looper mLooper;
+    private Messenger.Factory mFactory;
 
     public Manager() {
         super();
@@ -75,9 +75,9 @@ public class Manager implements Dispatcher.Callback {
 
         mLock.lock();
         try {
-            mLooper = looper;
+            mFactory = Messengers.from(looper);
             for (final Executable executable : mExecutables) {
-                if (!executable.attach(looper)) {
+                if (!executable.attach(mFactory)) {
                     Log.w(TAG, executable + " failed to attach"); //NON-NLS
                     success = false;
                 }
@@ -90,25 +90,20 @@ public class Manager implements Dispatcher.Callback {
     }
 
     @Override
-    public final boolean onStop() {
-        boolean success = true;
-
+    public final void onStop() {
         mLock.lock();
         try {
-            if (mLooper != null) {
-                mLooper = null;
+            if (mFactory != null) {
+                mFactory = null;
                 for (final Executable executable : mExecutables) {
                     if (!executable.detach()) {
                         Log.w(TAG, executable + " failed to detach"); //NON-NLS
-                        success = false;
                     }
                 }
             }
         } finally {
             mLock.unlock();
         }
-
-        return success;
     }
 
     @Nullable
@@ -118,7 +113,7 @@ public class Manager implements Dispatcher.Callback {
         mLock.lock();
         try {
             if (mExecutables.add(executable)) {
-                if ((mLooper == null) || executable.attach(mLooper)) {
+                if ((mFactory == null) || executable.attach(mFactory)) {
                     Log.d(TAG, executable + " submitted"); //NON-NLS
                     submission = new Executor.Submission() {
                         @Override
@@ -127,11 +122,12 @@ public class Manager implements Dispatcher.Callback {
 
                             mLock.lock();
                             try {
-                                if (mExecutables.remove(executable)) {
-                                    success = (mLooper == null) || executable.detach();
-                                    if (!success) {
+                                if (mExecutables.contains(executable)) {
+                                    success = (mFactory == null) || executable.detach();
+                                    if (success) {
+                                        mExecutables.remove(executable);
+                                    } else {
                                         Log.w(TAG, "Submission for " + executable + " failed to be stopped"); //NON-NLS
-                                        mExecutables.add(executable);
                                     }
                                 } else {
                                     success = true;

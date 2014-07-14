@@ -16,15 +16,25 @@
 
 package android.actor.executor;
 
-import android.actor.Executor;
-import android.actor.ExecutorTestCase;
-import android.actor.Executors;
 import android.support.annotation.NonNull;
 
-public class MainThreadExecutorTest extends ExecutorTestCase {
-    @NonNull
-    @Override
-    protected final Executor create() {
-        return Executors.mainThread();
+public interface Messenger<M> {
+
+    boolean send(final int message);
+
+    boolean send(@NonNull final M message, final long delay);
+
+    boolean stop(final boolean immediately);
+
+    interface Callback<M> {
+
+        boolean onMessage(final int message);
+
+        boolean onMessage(@NonNull final M message);
+    }
+
+    interface Factory {
+        @NonNull
+        <M> Messenger<M> create(@NonNull final Callback<M> callback);
     }
 }

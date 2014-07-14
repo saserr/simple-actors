@@ -16,10 +16,9 @@
 
 package android.actor;
 
+import android.actor.executor.BufferedMessenger;
 import android.actor.executor.Executable;
-import android.os.Handler;
-import android.os.Looper;
-import android.os.Message;
+import android.actor.executor.Messenger;
 import android.support.annotation.IntDef;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -28,22 +27,17 @@ import android.util.Log;
 import org.jetbrains.annotations.NonNls;
 
 import java.lang.annotation.Retention;
-import java.util.LinkedList;
-import java.util.Queue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-import static android.os.SystemClock.uptimeMillis;
-import static java.lang.Thread.currentThread;
 import static java.lang.annotation.RetentionPolicy.SOURCE;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 public class Reference<M> implements Executable {
 
     private static final String TAG = Reference.class.getSimpleName();
-
-    private static final long NO_DELAY = 0;
 
     @NonNull
     private final System mSystem;
@@ -57,12 +51,10 @@ public class Reference<M> implements Executable {
     private final String mActorStopped;
 
     private final Lock mLock = new ReentrantLock();
-    private final Queue<PendingMessage<M>> mPendingMessages = new LinkedList<>();
-
+    @Nullable
+    private BufferedMessenger<M> mMessenger;
     @Nullable
     private Task<M> mTask;
-    @Nullable
-    private Handler mHandler;
     private boolean mStopped = false;
 
     public Reference(@NonNull final System system,
@@ -96,26 +88,7 @@ public class Reference<M> implements Executable {
     }
 
     public final boolean tell(@NonNull final M message) {
-        final boolean success;
-
-        mLock.lock();
-        try {
-            if (mStopped) {
-                throw new UnsupportedOperationException(mActorStopped);
-            }
-
-            if (mHandler == null) {
-                success = mPendingMessages.offer(new PendingMessage.User<>(message));
-            } else {
-                success = (mTask == null) ?
-                        send(mHandler, message, NO_DELAY) :
-                        mTask.send(mHandler, message) || send(mHandler, message, NO_DELAY);
-            }
-        } finally {
-            mLock.unlock();
-        }
-
-        return success;
+        return tell(message, 0, MILLISECONDS);
     }
 
     public final boolean tell(@NonNull final M message,
@@ -123,21 +96,15 @@ public class Reference<M> implements Executable {
                               @NonNull final TimeUnit unit) {
         final boolean success;
 
-        if (delay > 0) {
-            mLock.lock();
-            try {
-                if (mStopped) {
-                    throw new UnsupportedOperationException(mActorStopped);
-                }
-
-                success = (mHandler == null) ?
-                        mPendingMessages.offer(new PendingMessage.User<>(message, delay, unit)) :
-                        send(mHandler, message, unit.toMillis(delay));
-            } finally {
-                mLock.unlock();
+        mLock.lock();
+        try {
+            if (mStopped || (mMessenger == null)) {
+                throw new UnsupportedOperationException(mActorStopped);
             }
-        } else {
-            success = tell(message);
+
+            success = mMessenger.send(message, unit.toMillis(delay));
+        } finally {
+            mLock.unlock();
         }
 
         return success;
@@ -148,15 +115,18 @@ public class Reference<M> implements Executable {
 
         mLock.lock();
         try {
-            if (!mStopped && (mHandler == null) && (mTask != null)) {
-                Log.d(TAG, this + " will push pending messages before stop"); //NON-NLS
-                PendingMessage<M> message = mPendingMessages.poll();
-                while (message != null) {
-                    message.send(mTask);
-                    message = mPendingMessages.poll();
+            if (mStopped) {
+                success = true;
+            } else {
+                if (mMessenger == null) {
+                    throw new UnsupportedOperationException(mActorStopped);
                 }
+
+                success = mMessenger.isAttached() ?
+                        mMessenger.send(SystemMessage.STOP) :
+                        mMessenger.stop(false);
             }
-            success = mStopped || send(SystemMessage.STOP);
+
             mStopped = true;
         } finally {
             mLock.unlock();
@@ -166,27 +136,22 @@ public class Reference<M> implements Executable {
     }
 
     @Override
-    public final boolean attach(@NonNull final Looper looper) {
+    public final boolean attach(@NonNull final Messenger.Factory factory) {
         final boolean success;
 
         mLock.lock();
         try {
-            success = (mTask != null) && ((mHandler == null) || !hasUndeliveredMessages(mHandler));
-            if (success) {
-                mHandler = new Handler(looper, mTask);
-                Log.d(TAG, this + " will send pending messages"); //NON-NLS
-                PendingMessage<M> message = mPendingMessages.poll();
-                while (message != null) {
-                    message.send(mHandler, mTask);
-                    message = mPendingMessages.poll();
-                }
+            if (mStopped || (mMessenger == null)) {
+                throw new UnsupportedOperationException(mActorStopped);
             }
+
+            success = mMessenger.attach(factory);
         } finally {
             mLock.unlock();
         }
 
         if (success) {
-            Log.d(TAG, this + " attached to new looper"); //NON-NLS
+            Log.d(TAG, this + " attached to new messenger"); //NON-NLS
         }
 
         return success;
@@ -198,22 +163,28 @@ public class Reference<M> implements Executable {
 
         mLock.lock();
         try {
-            if (mStopped && (mHandler != null)) {
-                Log.d(TAG, this + " removing all pending messages from the handler"); //NON-NLS
-                mHandler.removeMessages(MessageType.SYSTEM);
-                mHandler.removeMessages(MessageType.USER);
-            }
+            if (mStopped) {
+                if (mMessenger == null) {
+                    success = true;
+                } else {
+                    Log.d(TAG, this + " stopping the messenger"); //NON-NLS
+                    success = mMessenger.stop(true);
+                    mMessenger = null;
+                }
+            } else {
+                if (mMessenger == null) {
+                    throw new UnsupportedOperationException(mActorStopped);
+                }
 
-            success = (mHandler == null) || !hasUndeliveredMessages(mHandler);
-            if (success) {
-                mHandler = null;
+                mMessenger.detach();
+                success = true;
             }
         } finally {
             mLock.unlock();
         }
 
         if (success) {
-            Log.d(TAG, this + " detached from the looper"); //NON-NLS
+            Log.d(TAG, this + " detached from the messenger"); //NON-NLS
         }
 
         return success;
@@ -248,31 +219,6 @@ public class Reference<M> implements Executable {
         return (Reference<N>) this;
     }
 
-    protected final boolean send(final int message) {
-        final boolean success;
-
-        mLock.lock();
-        try {
-            if (mStopped) {
-                throw new UnsupportedOperationException(mActorStopped);
-            }
-
-            if (mHandler == null) {
-                success = (mPendingMessages.isEmpty() && (mTask != null)) ?
-                        (mTask.handleSystemMessage(message) || mPendingMessages.offer(new PendingMessage.System<M>(message))) :
-                        mPendingMessages.offer(new PendingMessage.System<M>(message));
-            } else {
-                success = (mTask == null) ?
-                        send(mHandler, message) :
-                        (mTask.send(mHandler, message) || send(mHandler, message));
-            }
-        } finally {
-            mLock.unlock();
-        }
-
-        return success;
-    }
-
     protected final boolean start(@NonNull final Executor executor) {
         boolean success = false;
 
@@ -281,6 +227,7 @@ public class Reference<M> implements Executable {
             if (mTask == null) {
                 mTask = new Task<>(this, mActor);
                 mActor.postStart(mSystem, this);
+                mMessenger = new BufferedMessenger<>(mTask);
             }
 
             success = mTask.start(executor);
@@ -302,14 +249,11 @@ public class Reference<M> implements Executable {
 
         mLock.lock();
         try {
-            if (mStopped) {
+            if (mStopped || (mMessenger == null)) {
                 throw new UnsupportedOperationException(mActorStopped);
             }
 
-            success = (mHandler == null) || send(SystemMessage.PAUSE);
-            if (success) {
-                mHandler = null;
-            }
+            success = mMessenger.send(SystemMessage.PAUSE);
         } finally {
             mLock.unlock();
         }
@@ -353,28 +297,6 @@ public class Reference<M> implements Executable {
         return success;
     }
 
-    private static boolean hasUndeliveredMessages(@NonNull final Handler handler) {
-        return handler.hasMessages(MessageType.SYSTEM) || handler.hasMessages(MessageType.USER);
-    }
-
-    private static boolean send(@NonNull final Handler handler, final int message) {
-        return handler.sendMessage(handler.obtainMessage(MessageType.SYSTEM, message, 0));
-    }
-
-    private static <M> boolean send(@NonNull final Handler handler,
-                                    @NonNull final M message,
-                                    final long delay) {
-        final Message msg = handler.obtainMessage(MessageType.USER, message);
-        return (delay > 0) ? handler.sendMessageDelayed(msg, delay) : handler.sendMessage(msg);
-    }
-
-    @Retention(SOURCE)
-    @IntDef({MessageType.SYSTEM, MessageType.USER})
-    private @interface MessageType {
-        int SYSTEM = 1;
-        int USER = 2;
-    }
-
     @Retention(SOURCE)
     @IntDef({SystemMessage.PAUSE, SystemMessage.STOP})
     private @interface SystemMessage {
@@ -382,79 +304,7 @@ public class Reference<M> implements Executable {
         int STOP = 2;
     }
 
-    private interface PendingMessage<M> {
-
-        boolean send(@NonNull final Task<M> task);
-
-        boolean send(@NonNull final Handler handler, @Nullable final Task<M> task);
-
-        class System<M> implements PendingMessage<M> {
-
-            private final int mMessage;
-
-            public System(final int message) {
-                super();
-
-                mMessage = message;
-            }
-
-            @Override
-            public final boolean send(@NonNull final Task<M> task) {
-                return task.handleSystemMessage(mMessage);
-            }
-
-            @Override
-            public final boolean send(@NonNull final Handler handler, @Nullable final Task<M> task) {
-                return (task == null) ?
-                        Reference.send(handler, mMessage) :
-                        (task.send(handler, mMessage) || Reference.send(handler, mMessage));
-            }
-        }
-
-        class User<M> implements PendingMessage<M> {
-
-            @NonNull
-            private final M mMessage;
-            private final long mAtTime;
-
-            public User(@NonNull final M message, final long delay, @NonNull final TimeUnit unit) {
-                super();
-
-                mMessage = message;
-                mAtTime = uptimeMillis() + unit.toMillis(delay);
-            }
-
-            public User(@NonNull final M message) {
-                super();
-
-                mMessage = message;
-                mAtTime = 0;
-            }
-
-            @Override
-            public final boolean send(@NonNull final Task<M> task) {
-                return (mAtTime <= uptimeMillis()) && task.handleUserMessage(mMessage);
-            }
-
-            @Override
-            public final boolean send(@NonNull final Handler handler, @Nullable final Task<M> task) {
-                final long now = uptimeMillis();
-                final boolean success;
-
-                if (now < mAtTime) {
-                    success = Reference.send(handler, mMessage, mAtTime - now);
-                } else {
-                    success = (task == null) ?
-                            Reference.send(handler, mMessage, NO_DELAY) :
-                            (task.send(handler, mMessage) || Reference.send(handler, mMessage, NO_DELAY));
-                }
-
-                return success;
-            }
-        }
-    }
-
-    private static class Task<M> implements Handler.Callback {
+    private static class Task<M> implements Messenger.Callback<M> {
 
         @NonNull
         private final Reference<M> mReference;
@@ -490,49 +340,7 @@ public class Reference<M> implements Executable {
         }
 
         @Override
-        @SuppressWarnings("unchecked")
-        public final boolean handleMessage(@NonNull final Message message) {
-            final boolean processed;
-
-            switch (message.what) {
-                case MessageType.SYSTEM:
-                    processed = handleSystemMessage(message.arg1);
-                    break;
-                case MessageType.USER:
-                    processed = handleUserMessage((M) message.obj);
-                    break;
-                default:
-                    processed = false;
-            }
-
-            if (processed) {
-                message.recycle();
-            }
-
-            return processed;
-        }
-
-        public final boolean handleUserMessage(@NonNls @NonNull final M message) {
-            final boolean success = mDirectCall.tryAcquire();
-
-            if (success) {
-                try {
-                    mActor.onMessage(message);
-                } catch (final Throwable error) {
-                    Log.e(TAG, mReference + " failed to receive message " + message, error); // NON-NLS
-                } finally {
-                    mDirectCall.release();
-                }
-            }
-
-            if (success) {
-                Log.d(TAG, mReference + " handled user message " + message); //NON-NLS
-            }
-
-            return success;
-        }
-
-        public final boolean handleSystemMessage(@NonNls final int message) {
+        public final boolean onMessage(@NonNls final int message) {
             final boolean processed;
 
             switch (message) {
@@ -554,16 +362,25 @@ public class Reference<M> implements Executable {
             return processed;
         }
 
-        public final boolean send(@NonNull final Handler handler, final int message) {
-            return !hasUndeliveredMessages(handler) && isCurrentThread(handler) && handleSystemMessage(message);
-        }
+        @Override
+        public final boolean onMessage(@NonNls @NonNull final M message) {
+            final boolean success = mDirectCall.tryAcquire();
 
-        public final boolean send(@NonNull final Handler handler, @NonNull final M message) {
-            return !hasUndeliveredMessages(handler) && isCurrentThread(handler) && handleUserMessage(message);
-        }
+            if (success) {
+                try {
+                    mActor.onMessage(message);
+                } catch (final Throwable error) {
+                    Log.e(TAG, mReference + " failed to receive message " + message, error); // NON-NLS
+                } finally {
+                    mDirectCall.release();
+                }
+            }
 
-        private static boolean isCurrentThread(@NonNull final Handler handler) {
-            return handler.getLooper().getThread().equals(currentThread());
+            if (success) {
+                Log.d(TAG, mReference + " handled user message " + message); //NON-NLS
+            }
+
+            return success;
         }
     }
 }

@@ -19,6 +19,7 @@ package android.actor.util;
 import android.actor.Executor;
 import android.actor.executor.Executable;
 import android.actor.executor.Manager;
+import android.os.Looper;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
@@ -37,7 +38,8 @@ public class CurrentThreadExecutor implements Executor {
     public CurrentThreadExecutor() {
         super();
 
-        mManager.onStart(myLooper());
+        final Looper looper = myLooper();
+        mManager.onStart(looper);
     }
 
     @Nullable
@@ -61,20 +63,16 @@ public class CurrentThreadExecutor implements Executor {
     }
 
     @Override
-    public final boolean stop() {
-        boolean success = true;
-
+    public final void stop() {
         mLock.lock();
         try {
             if (!mStopped) {
-                success = mManager.onStop();
+                mManager.onStop();
                 mManager = null;
                 mStopped = true;
             }
         } finally {
             mLock.unlock();
         }
-
-        return success;
     }
 }

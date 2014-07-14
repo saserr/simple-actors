@@ -169,7 +169,7 @@ public class ReferenceTest extends TestCase {
         final MockActor<Integer> actor = new MockActor<>();
         final Reference<Integer> reference = mSystem.with(isA(RandomString), actor);
 
-        assertThat("executor stop", mExecutor.stop(), is(true));
+        mExecutor.stop();
         assertThat("actor is stopped", reference.isStopped(), is(false));
     }
 

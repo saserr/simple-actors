@@ -19,7 +19,6 @@ package android.actor.executor;
 import android.actor.Executor;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-import android.util.Log;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,8 +26,6 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class FixedSizeExecutor implements Executor {
-
-    private static final String TAG = FixedSizeExecutor.class.getSimpleName();
 
     @NonNull
     private final List<Manager> mManagers;
@@ -77,21 +74,17 @@ public class FixedSizeExecutor implements Executor {
     }
 
     @Override
-    public final boolean stop() {
-        boolean success = true;
-
+    public final void stop() {
         mLock.lock();
         try {
             for (final Manager manager : mManagers) {
-                success = manager.stop() && success;
+                manager.stop();
             }
             mManagers.clear();
             mStopped = true;
         } finally {
             mLock.unlock();
         }
-
-        return success;
     }
 
     private static class Manager extends android.actor.executor.Manager {
@@ -106,16 +99,8 @@ public class FixedSizeExecutor implements Executor {
             mDispatcher.start();
         }
 
-        public final boolean stop() {
-            final boolean success = onStop();
-
-            if (success) {
-                mDispatcher.stop();
-            } else {
-                Log.w(TAG, "Manager failed to stop"); //NON-NLS
-            }
-
-            return success;
+        public final void stop() {
+            mDispatcher.stop();
         }
     }
 }
