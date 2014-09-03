@@ -16,8 +16,12 @@
 
 package android.actor.executor;
 
+import android.actor.Executor;
 import android.os.Looper;
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
+
+import org.jetbrains.annotations.NonNls;
 
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -25,11 +29,14 @@ public class Dispatcher {
 
     @NonNull
     private final Loop mLoop;
+    @NonNull
+    private final Manager mManager;
 
-    public Dispatcher(@NonNull final Callback callback) {
+    public Dispatcher() {
         super();
 
-        mLoop = new Loop(callback);
+        mManager = new Manager();
+        mLoop = new Loop(mManager);
     }
 
     public final void start() {
@@ -40,24 +47,30 @@ public class Dispatcher {
         mLoop.stop();
     }
 
-    public interface Callback {
+    public final boolean isEmpty() {
+        return mManager.isEmpty();
+    }
 
-        boolean onStart(@NonNull final Looper looper);
+    public final int size() {
+        return mManager.size();
+    }
 
-        void onStop();
+    @Nullable
+    public final Executor.Submission submit(@NonNls @NonNull final Executable executable) {
+        return mManager.submit(executable);
     }
 
     private static class Loop implements Runnable {
 
         @NonNull
-        private final Callback mCallback;
+        private final Manager mManager;
 
         private final AtomicReference<Looper> mLooper = new AtomicReference<>();
 
-        private Loop(@NonNull final Callback callback) {
+        private Loop(@NonNull final Manager manager) {
             super();
 
-            mCallback = callback;
+            mManager = manager;
         }
 
         @Override
@@ -67,11 +80,11 @@ public class Dispatcher {
             final Looper current = Looper.myLooper();
             if (mLooper.compareAndSet(null, current)) {
                 try {
-                    if (mCallback.onStart(current)) {
+                    if (mManager.start(current)) {
                         Looper.loop();
                     }
                 } finally {
-                    mCallback.onStop();
+                    mManager.stop();
                     mLooper.set(null);
                 }
             } else {

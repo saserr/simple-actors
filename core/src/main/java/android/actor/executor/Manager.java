@@ -29,7 +29,7 @@ import java.util.HashSet;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-public class Manager implements Dispatcher.Callback {
+public class Manager {
 
     private static final String TAG = Manager.class.getSimpleName();
 
@@ -69,8 +69,7 @@ public class Manager implements Dispatcher.Callback {
         return result;
     }
 
-    @Override
-    public final boolean onStart(@NonNull final Looper looper) {
+    public final boolean start(@NonNull final Looper looper) {
         boolean success = true;
 
         mLock.lock();
@@ -89,8 +88,7 @@ public class Manager implements Dispatcher.Callback {
         return success;
     }
 
-    @Override
-    public final void onStop() {
+    public final void stop() {
         mLock.lock();
         try {
             if (mFactory != null) {

@@ -28,7 +28,7 @@ import java.util.concurrent.locks.ReentrantLock;
 public class FixedSizeExecutor implements Executor {
 
     @NonNull
-    private final List<Manager> mManagers;
+    private final List<Dispatcher> mDispatchers;
 
     private final Lock mLock = new ReentrantLock();
 
@@ -41,16 +41,18 @@ public class FixedSizeExecutor implements Executor {
             throw new IllegalArgumentException("Size must be grater than zero!");
         }
 
-        mManagers = new ArrayList<>(size);
+        mDispatchers = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            mManagers.add(new Manager());
+            final Dispatcher dispatcher = new Dispatcher();
+            dispatcher.start();
+            mDispatchers.add(dispatcher);
         }
     }
 
     @Nullable
     @Override
     public final Submission submit(@NonNull final Executable executable) {
-        Manager best;
+        Dispatcher best;
 
         mLock.lock();
         try {
@@ -58,12 +60,12 @@ public class FixedSizeExecutor implements Executor {
                 throw new UnsupportedOperationException("Executor is stopped!");
             }
 
-            best = mManagers.get(0);
-            final int size = mManagers.size();
+            best = mDispatchers.get(0);
+            final int size = mDispatchers.size();
             for (int i = 1; (i < size) && !best.isEmpty(); i++) {
-                final Manager manager = mManagers.get(i);
-                if (manager.size() < best.size()) {
-                    best = manager;
+                final Dispatcher dispatcher = mDispatchers.get(i);
+                if (dispatcher.size() < best.size()) {
+                    best = dispatcher;
                 }
             }
         } finally {
@@ -77,30 +79,13 @@ public class FixedSizeExecutor implements Executor {
     public final void stop() {
         mLock.lock();
         try {
-            for (final Manager manager : mManagers) {
-                manager.stop();
+            for (final Dispatcher dispatcher : mDispatchers) {
+                dispatcher.stop();
             }
-            mManagers.clear();
+            mDispatchers.clear();
             mStopped = true;
         } finally {
             mLock.unlock();
-        }
-    }
-
-    private static class Manager extends android.actor.executor.Manager {
-
-        @NonNull
-        private final Dispatcher mDispatcher;
-
-        private Manager() {
-            super();
-
-            mDispatcher = new Dispatcher(this);
-            mDispatcher.start();
-        }
-
-        public final void stop() {
-            mDispatcher.stop();
         }
     }
 }

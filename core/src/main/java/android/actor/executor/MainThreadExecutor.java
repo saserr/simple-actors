@@ -38,7 +38,7 @@ public class MainThreadExecutor implements Executor {
     public MainThreadExecutor() {
         super();
 
-        mManager.onStart(MAIN_THREAD);
+        mManager.start(MAIN_THREAD);
     }
 
     @Nullable
@@ -66,7 +66,7 @@ public class MainThreadExecutor implements Executor {
         mLock.lock();
         try {
             if (!mStopped) {
-                mManager.onStop();
+                mManager.stop();
                 mManager = null;
                 mStopped = true;
             }
