@@ -40,12 +40,13 @@ public class Reference<M> implements Executable {
     private static final String TAG = Reference.class.getSimpleName();
 
     @NonNull
-    private final System mSystem;
-    @NonNls
+    private final Context mContext;
     @NonNull
-    private final String mName;
+    private final Actor.Name mName;
     @NonNull
     private final Actor<M> mActor;
+    @NonNull
+    private final Callback mCallback;
     @NonNls
     @NonNull
     private final String mActorStopped;
@@ -57,20 +58,20 @@ public class Reference<M> implements Executable {
     private Task<M> mTask;
     private boolean mStopped = false;
 
-    public Reference(@NonNull final System system,
-                     @NonNls @NonNull final String name,
-                     @NonNull final Actor<M> actor) {
+    public Reference(@NonNull final Context context,
+                     @NonNull final Actor<M> actor,
+                     @NonNull final Callback callback) {
         super();
 
-        mSystem = system;
-        mName = name;
+        mContext = context;
+        mName = context.getName();
         mActor = actor;
+        mCallback = callback;
         mActorStopped = this + " is stopped";
     }
 
-    @NonNls
     @NonNull
-    public final String getName() {
+    public final Actor.Name getName() {
         return mName;
     }
 
@@ -85,6 +86,10 @@ public class Reference<M> implements Executable {
         }
 
         return result;
+    }
+
+    public final <N> boolean isParentOf(@NonNull final Reference<N> other) {
+        return mName.isParentOf(other.mName);
     }
 
     public final boolean tell(@NonNull final M message) {
@@ -226,7 +231,7 @@ public class Reference<M> implements Executable {
         try {
             if (mTask == null) {
                 mTask = new Task<>(this, mActor);
-                mActor.postStart(mSystem, this);
+                mActor.postStart(mContext, this);
                 mMessenger = new BufferedMessenger<>(mTask);
             }
 
@@ -269,7 +274,7 @@ public class Reference<M> implements Executable {
         boolean success = false;
 
         if (immediately) {
-            mSystem.onStop(this);
+            mCallback.onStop(this);
 
             mLock.lock();
             try {
@@ -295,6 +300,10 @@ public class Reference<M> implements Executable {
         }
 
         return success;
+    }
+
+    public interface Callback {
+        <M> void onStop(@NonNull final Reference<M> reference);
     }
 
     @Retention(SOURCE)

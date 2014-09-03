@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class ReferenceTest extends TestCase {
 
@@ -53,13 +54,16 @@ public class ReferenceTest extends TestCase {
 
     public final void testStart() {
         final MockActor<Integer> actor = new MockActor<>();
-        final Reference<Integer> reference = mSystem.with(isA(RandomString), actor);
+        final String name = isA(RandomString);
+        final Reference<Integer> reference = mSystem.with(name, actor);
 
-        final List<Pair<System, Reference<Integer>>> postStarts = actor.getPostStarts();
+        final List<Pair<Context, Reference<Integer>>> postStarts = actor.getPostStarts();
         assertThat("number of actor post start invocations", postStarts.size(), is(1));
 
-        final Pair<System, Reference<Integer>> postStart = postStarts.get(0);
-        assertThat("actor post start system", postStart.first, is(mSystem));
+        final Pair<Context, Reference<Integer>> postStart = postStarts.get(0);
+        assertThat("actor post start context", postStart.first, is(notNullValue()));
+        assertThat("actor post start system", postStart.first.getSystem(), is(mSystem));
+        assertThat("actor post start name", postStart.first.getName(), is(new Actor.Name(null, name)));
         assertThat("actor post start reference", postStart.second, is(reference));
     }
 
@@ -82,13 +86,7 @@ public class ReferenceTest extends TestCase {
         assertThat("actor pause", reference.pause(), is(true));
         assertThat("actor is stopped", reference.isStopped(), is(false));
 
-        final List<Pair<System, Reference<Integer>>> postStarts = actor.getPostStarts();
-        assertThat("number of actor post start invocations", postStarts.size(), is(1));
-
-        final Pair<System, Reference<Integer>> postStart = postStarts.get(0);
-        assertThat("actor post start system", postStart.first, is(mSystem));
-        assertThat("actor post start reference", postStart.second, is(reference));
-
+        assertThat("number of actor post start invocations", actor.getPostStarts().size(), is(1));
         assertThat("actor pre stops", actor.getPreStops(), is(0));
     }
 
@@ -137,13 +135,7 @@ public class ReferenceTest extends TestCase {
         assertThat("actor stop", reference.stop(), is(true));
         assertThat("actor is stopped", reference.isStopped(), is(true));
 
-        final List<Pair<System, Reference<Integer>>> postStarts = actor.getPostStarts();
-        assertThat("number of actor post start invocations", postStarts.size(), is(1));
-
-        final Pair<System, Reference<Integer>> postStart = postStarts.get(0);
-        assertThat("actor post start system", postStart.first, is(mSystem));
-        assertThat("actor post start reference", postStart.second, is(reference));
-
+        assertThat("number of actor post start invocations", actor.getPostStarts().size(), is(1));
         assertThat("number of actor pre stop invocations", actor.getPreStops(), is(1));
     }
 
@@ -155,13 +147,7 @@ public class ReferenceTest extends TestCase {
         assertThat("actor 2nd stop", reference.stop(), is(true));
         assertThat("actor is stopped", reference.isStopped(), is(true));
 
-        final List<Pair<System, Reference<Integer>>> postStarts = actor.getPostStarts();
-        assertThat("number of actor post start invocations", postStarts.size(), is(1));
-
-        final Pair<System, Reference<Integer>> postStart = postStarts.get(0);
-        assertThat("actor post start system", postStart.first, is(mSystem));
-        assertThat("actor post start reference", postStart.second, is(reference));
-
+        assertThat("number of actor post start invocations", actor.getPostStarts().size(), is(1));
         assertThat("number of actor pre stop invocations", actor.getPreStops(), is(1));
     }
 
@@ -226,7 +212,7 @@ public class ReferenceTest extends TestCase {
             private Reference<Integer> mSelf;
 
             @Override
-            protected void postStart(@NonNull final System system,
+            protected void postStart(@NonNull final Context context,
                                      @NonNull final Reference<Integer> self) {
                 mSelf = self;
             }

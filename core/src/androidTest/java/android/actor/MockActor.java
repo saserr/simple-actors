@@ -26,7 +26,7 @@ import static java.util.Collections.unmodifiableList;
 
 public class MockActor<M> extends Actor<M> {
 
-    private final List<Pair<System, Reference<M>>> mPostStarts = new ArrayList<>(1);
+    private final List<Pair<Context, Reference<M>>> mPostStarts = new ArrayList<>(1);
     private final List<M> mMessages = new ArrayList<>(1);
     private int mPreStops = 0;
 
@@ -35,7 +35,7 @@ public class MockActor<M> extends Actor<M> {
     }
 
     @NonNull
-    public final List<Pair<System, Reference<M>>> getPostStarts() {
+    public final List<Pair<Context, Reference<M>>> getPostStarts() {
         return unmodifiableList(mPostStarts);
     }
 
@@ -49,8 +49,9 @@ public class MockActor<M> extends Actor<M> {
     }
 
     @Override
-    protected final void postStart(@NonNull final System system, @NonNull final Reference<M> self) {
-        mPostStarts.add(Pair.create(system, self));
+    protected final void postStart(@NonNull final Context context,
+                                   @NonNull final Reference<M> self) {
+        mPostStarts.add(Pair.create(context, self));
     }
 
     @Override

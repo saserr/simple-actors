@@ -30,7 +30,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import static java.lang.annotation.RetentionPolicy.SOURCE;
 
-public class System {
+public class System implements Actor.Repository {
 
     public static final System OnMainThread = new System(Executors.mainThread());
 
@@ -45,6 +45,14 @@ public class System {
 
     private final Lock mLock = new ReentrantLock();
     private final Set<Reference<?>> mReferences = new HashSet<>();
+
+    private final Reference.Callback mCallback = new Reference.Callback() {
+        @Override
+        public <M> void onStop(@NonNull final Reference<M> reference) {
+            stop(reference);
+        }
+    };
+
     @State
     private int mState = State.STARTED;
 
@@ -184,9 +192,16 @@ public class System {
     }
 
     @NonNull
+    @Override
     public final <M> Reference<M> with(@NonNls @NonNull final String name,
                                        @NonNull final Actor<M> actor) {
-        final Reference<M> reference = new Reference<>(this, name, actor);
+        return with(new Actor.Name(null, name), actor);
+    }
+
+    @NonNull
+    private <M> Reference<M> with(@NonNull final Actor.Name name, @NonNull final Actor<M> actor) {
+        final Context context = new Context(name, this);
+        final Reference<M> reference = new Reference<>(context, actor, mCallback);
 
         mLock.lock();
         try {
@@ -215,11 +230,18 @@ public class System {
         return reference;
     }
 
-    protected final <M> void onStop(@NonNull final Reference<M> reference) {
+    private <M> void stop(@NonNull final Reference<M> reference) {
         mLock.lock();
         try {
-            mReferences.remove(reference);
-            Log.d(TAG, reference + " removed"); //NON-NLS
+            if (mReferences.remove(reference)) {
+                Log.d(TAG, reference + " removed"); //NON-NLS
+
+                for (final Reference<?> other : mReferences) {
+                    if (reference.isParentOf(other)) {
+                        other.stop(true);
+                    }
+                }
+            }
         } finally {
             mLock.unlock();
         }
@@ -231,5 +253,39 @@ public class System {
         int STARTED = 1;
         int PAUSED = 2;
         int STOPPED = 3;
+    }
+
+    private static class Context implements android.actor.Context {
+
+        @NonNull
+        private final Actor.Name mName;
+        @NonNull
+        private final System mSystem;
+
+        private Context(@NonNull final Actor.Name name, @NonNull final System system) {
+            super();
+
+            mName = name;
+            mSystem = system;
+        }
+
+        @NonNull
+        @Override
+        public final Actor.Name getName() {
+            return mName;
+        }
+
+        @NonNull
+        @Override
+        public final System getSystem() {
+            return mSystem;
+        }
+
+        @NonNull
+        @Override
+        public final <M> Reference<M> with(@NonNls @NonNull final String name,
+                                           @NonNull final Actor<M> actor) {
+            return mSystem.with(new Actor.Name(mName, name), actor);
+        }
     }
 }

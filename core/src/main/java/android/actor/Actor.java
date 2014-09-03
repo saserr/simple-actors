@@ -17,13 +17,76 @@
 package android.actor;
 
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
+
+import org.jetbrains.annotations.NonNls;
 
 public abstract class Actor<M> {
 
     protected abstract void onMessage(@NonNull final M m);
 
-    protected void postStart(@NonNull final System system,
+    protected void postStart(@NonNull final Context context,
                              @NonNull final Reference<M> self) {/* do nothing */}
 
     protected void preStop() {/* do nothing */}
+
+    public interface Repository {
+        @NonNull
+        <M> Reference<M> with(@NonNls @NonNull final String name, @NonNull final Actor<M> actor);
+    }
+
+    public static class Name {
+
+        @Nullable
+        private final Name mParent;
+        @NonNls
+        @NonNull
+        private final String mPart;
+
+        public Name(@Nullable final Name parent, @NonNls @NonNull final String part) {
+            super();
+
+            if (part.indexOf('.') >= 0) {
+                throw new IllegalArgumentException("Name part cannot contain '.' character");
+            }
+
+            mParent = parent;
+            mPart = part;
+        }
+
+        public final boolean isParentOf(@NonNull final Name other) {
+            Name parent = other.mParent;
+
+            while ((parent != null) && !equals(parent)) {
+                parent = parent.mParent;
+            }
+
+            return parent != null;
+        }
+
+        @Override
+        public final int hashCode() {
+            return (31 * ((mParent == null) ? 0 : mParent.hashCode())) + mPart.hashCode();
+        }
+
+        @Override
+        public final boolean equals(@Nullable final Object obj) {
+            boolean result = this == obj;
+
+            if (!result && (obj instanceof Name)) {
+                final Name other = (Name) obj;
+                result = mPart.equals(other.mPart) &&
+                        ((mParent == null) ? (other.mParent == null) : mParent.equals(other.mParent));
+            }
+
+            return result;
+        }
+
+        @NonNls
+        @NonNull
+        @Override
+        public final String toString() {
+            return (mParent == null) ? mPart : (mParent.toString() + '.' + mPart);
+        }
+    }
 }
