@@ -119,10 +119,6 @@ public class LooperMessenger<M> implements Messenger<M> {
                     processed = false;
             }
 
-            if (processed) {
-                message.recycle();
-            }
-
             return processed;
         }
     }
