@@ -99,7 +99,7 @@ public class LooperMessenger<M> implements Messenger<M> {
         @NonNull
         private final Messenger.Callback<M> mCallback;
 
-        private HandlerCallback(@NonNull final Messenger.Callback<M> callback) {
+        HandlerCallback(@NonNull final Messenger.Callback<M> callback) {
             super();
             mCallback = callback;
         }

@@ -262,7 +262,7 @@ public class System implements Actor.Repository {
         @NonNull
         private final System mSystem;
 
-        private Context(@NonNull final Actor.Name name, @NonNull final System system) {
+        Context(@NonNull final Actor.Name name, @NonNull final System system) {
             super();
 
             mName = name;

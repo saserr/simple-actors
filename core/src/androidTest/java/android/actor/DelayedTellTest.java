@@ -166,7 +166,7 @@ public class DelayedTellTest extends TestCase {
         private final Object mLock = new Object();
         private final List<Long> mOnMessages = new ArrayList<>(1);
 
-        private MockActor() {
+        MockActor() {
             super();
         }
 

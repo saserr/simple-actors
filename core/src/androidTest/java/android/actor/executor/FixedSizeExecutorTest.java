@@ -106,7 +106,7 @@ public class FixedSizeExecutorTest extends ExecutorTestCase {
         private final Object mLock = new Object();
         private final List<Messenger.Factory> mAttachments = new ArrayList<>(1);
 
-        private SpyExecutable() {
+        SpyExecutable() {
             super();
         }
 

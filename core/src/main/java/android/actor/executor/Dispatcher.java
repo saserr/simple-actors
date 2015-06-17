@@ -67,7 +67,7 @@ public class Dispatcher {
 
         private final AtomicReference<Looper> mLooper = new AtomicReference<>();
 
-        private Loop(@NonNull final Manager manager) {
+        Loop(@NonNull final Manager manager) {
             super();
 
             mManager = manager;

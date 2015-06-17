@@ -137,7 +137,7 @@ public abstract class ExecutorTestCase extends TestCase {
         private int mAttachments = 0;
         private int mDetachments = 0;
 
-        private SpyExecutable() {
+        SpyExecutable() {
             super();
         }
 

@@ -384,7 +384,7 @@ public class SystemTest extends TestCase {
 
         private final List<Submission> mSubmissions = new ArrayList<>(1);
 
-        private MockExecutor() {
+        MockExecutor() {
             super();
         }
 

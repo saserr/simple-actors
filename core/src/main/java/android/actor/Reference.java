@@ -324,7 +324,7 @@ public class Reference<M> implements Executable {
         @Nullable
         private Executor.Submission mSubmission;
 
-        private Task(@NonNull final Reference<M> reference, @NonNull final Actor<M> actor) {
+        Task(@NonNull final Reference<M> reference, @NonNull final Actor<M> actor) {
             super();
 
             mReference = reference;
