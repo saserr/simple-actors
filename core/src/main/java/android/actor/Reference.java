@@ -16,9 +16,8 @@
 
 package android.actor;
 
-import android.actor.executor.BufferedMessenger;
 import android.actor.executor.Executable;
-import android.actor.executor.Messenger;
+import android.actor.messenger.BufferedMessenger;
 import android.support.annotation.IntDef;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;

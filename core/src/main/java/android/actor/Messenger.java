@@ -14,25 +14,27 @@
  * limitations under the License.
  */
 
-package android.actor.executor;
+package android.actor;
 
-import android.os.Looper;
 import android.support.annotation.NonNull;
 
-public final class Messengers {
+public interface Messenger<M> {
 
-    @NonNull
-    public static Messenger.Factory from(@NonNull final Looper looper) {
-        return new Messenger.Factory() {
-            @NonNull
-            @Override
-            public <M> Messenger<M> create(@NonNull final Messenger.Callback<M> callback) {
-                return new LooperMessenger<>(looper, callback);
-            }
-        };
+    boolean send(final int message);
+
+    boolean send(@NonNull final M message, final long delay);
+
+    boolean stop(final boolean immediately);
+
+    interface Callback<M> {
+
+        boolean onMessage(final int message);
+
+        boolean onMessage(@NonNull final M message);
     }
 
-    private Messengers() {
-        super();
+    interface Factory {
+        @NonNull
+        <M> Messenger<M> create(@NonNull final Callback<M> callback);
     }
 }

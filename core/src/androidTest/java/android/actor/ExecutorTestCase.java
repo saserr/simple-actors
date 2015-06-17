@@ -17,7 +17,6 @@
 package android.actor;
 
 import android.actor.executor.Executable;
-import android.actor.executor.Messenger;
 import android.actor.util.Wait;
 import android.support.annotation.NonNull;
 

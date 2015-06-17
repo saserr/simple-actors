@@ -19,6 +19,7 @@ package android.actor.executor;
 import android.actor.Executor;
 import android.actor.ExecutorTestCase;
 import android.actor.Executors;
+import android.actor.Messenger;
 import android.actor.util.Wait;
 import android.support.annotation.NonNull;
 

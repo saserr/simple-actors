@@ -17,7 +17,7 @@
 package android.actor;
 
 import android.actor.executor.Executable;
-import android.actor.executor.Messengers;
+import android.actor.messenger.Messengers;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 

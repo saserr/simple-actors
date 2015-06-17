@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-package android.actor.executor;
+package android.actor.messenger;
 
+import android.actor.Messenger;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;

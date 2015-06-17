@@ -18,8 +18,6 @@ package android.actor;
 
 import android.support.annotation.NonNull;
 
-import org.jetbrains.annotations.NonNls;
-
 public interface Context extends Actor.Repository {
 
     @NonNull
