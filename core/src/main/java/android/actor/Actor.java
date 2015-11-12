@@ -37,6 +37,9 @@ public abstract class Actor<M> {
 
     public static class Name {
 
+        @NonNls
+        public static final char SEPARATOR = '/';
+
         @Nullable
         private final Name mParent;
         @NonNls
@@ -46,8 +49,10 @@ public abstract class Actor<M> {
         public Name(@Nullable final Name parent, @NonNls @NonNull final String part) {
             super();
 
-            if (part.indexOf('.') >= 0) {
-                throw new IllegalArgumentException("Name part cannot contain '.' character");
+            if (part.indexOf(SEPARATOR) >= 0) {
+                throw new IllegalArgumentException(
+                        "Name part cannot contain '" + SEPARATOR + "' character"
+                );
             }
 
             mParent = parent;
@@ -86,7 +91,7 @@ public abstract class Actor<M> {
         @NonNull
         @Override
         public final String toString() {
-            return (mParent == null) ? mPart : (mParent.toString() + '.' + mPart);
+            return ((mParent == null) ? "" : mParent.toString()) + SEPARATOR + mPart;
         }
     }
 }
