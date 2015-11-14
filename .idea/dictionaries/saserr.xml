@@ -5,6 +5,7 @@
       <w>hamcrest</w>
       <w>loopers</w>
       <w>matchers</w>
+      <w>reregister</w>
     </words>
   </dictionary>
 </component>

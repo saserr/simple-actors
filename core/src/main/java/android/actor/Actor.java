@@ -23,6 +23,8 @@ import org.jetbrains.annotations.NonNls;
 
 public abstract class Actor<M> {
 
+    // TODO an instance should only be allowed once to be register with a System
+
     protected abstract void onMessage(@NonNull final M m);
 
     protected void postStart(@NonNull final Context context,

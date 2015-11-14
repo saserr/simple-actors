@@ -55,7 +55,7 @@ public final class SystemMatchers {
         }
 
         @Override
-        protected boolean matchesSafely(@NonNull final System system) {
+        protected boolean matchesSafely(final System system) {
             boolean result = false;
 
             switch (mExpected) {
@@ -74,8 +74,8 @@ public final class SystemMatchers {
         }
 
         @Override
-        protected void describeMismatchSafely(@NonNull final System system,
-                                              @NonNull final Description mismatchDescription) {
+        protected void describeMismatchSafely(final System system,
+                                              final Description mismatchDescription) {
             mismatchDescription.appendText("was "); //NON-NLS
             if (system.isStarted()) {
                 mismatchDescription.appendText("started"); //NON-NLS

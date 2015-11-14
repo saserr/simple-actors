@@ -22,6 +22,7 @@ import android.os.Looper;
 import android.os.Message;
 import android.support.annotation.IntDef;
 import android.support.annotation.NonNull;
+import android.support.annotation.VisibleForTesting;
 
 import net.jcip.annotations.ThreadSafe;
 
@@ -98,7 +99,8 @@ public class LooperMessenger<M> implements Messenger<M> {
 
     @Retention(SOURCE)
     @IntDef({MessageType.CONTROL, MessageType.USER})
-    private @interface MessageType {
+    @VisibleForTesting
+    @interface MessageType {
         int CONTROL = 1;
         int USER = 2;
     }

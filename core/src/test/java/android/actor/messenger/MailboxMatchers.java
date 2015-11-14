@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package android.actor;
+package android.actor.messenger;
 
 import android.support.annotation.NonNull;
 
@@ -22,35 +22,33 @@ import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
 
-public final class TimeMatchers {
+public final class MailboxMatchers {
 
     @NonNull
-    public static Matcher<Long> after(final long from) {
-        return new After(from);
+    public static Matcher<Mailbox<?>> empty() {
+        return new Empty();
     }
 
-    private static class After extends TypeSafeMatcher<Long> {
+    private static final class Empty extends TypeSafeMatcher<Mailbox<?>> {
 
-        private final long mFrom;
-
-        After(final long from) {
-            super();
-
-            mFrom = from;
+        @Override
+        protected boolean matchesSafely(final Mailbox<?> mailbox) {
+            return mailbox.isEmpty();
         }
 
         @Override
-        protected final boolean matchesSafely(final Long actual) {
-            return actual >= mFrom;
+        protected void describeMismatchSafely(final Mailbox<?> mailbox,
+                                              final Description mismatchDescription) {
+            mismatchDescription.appendText("was not empty"); //NON-NLS
         }
 
         @Override
-        public final void describeTo(@NonNull final Description description) {
-            description.appendText("a time after ").appendText(String.valueOf(mFrom)); //NON-NLS
+        public void describeTo(final Description description) {
+            description.appendText("empty"); //NON-NLS
         }
     }
 
-    private TimeMatchers() {
+    private MailboxMatchers() {
         super();
     }
 }

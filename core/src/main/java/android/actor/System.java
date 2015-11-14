@@ -218,6 +218,7 @@ public class System implements Actor.Repository {
                 throw new IllegalArgumentException(name + " is already registered!");
             }
 
+            // TODO use factory
             reference = new Reference<>(context, actor, mCallback);
 
             if (mState == State.STARTED) {

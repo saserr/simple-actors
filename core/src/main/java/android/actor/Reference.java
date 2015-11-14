@@ -22,6 +22,7 @@ import android.actor.messenger.Mailbox;
 import android.support.annotation.IntDef;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.annotation.VisibleForTesting;
 import android.util.Log;
 
 import net.jcip.annotations.GuardedBy;
@@ -44,6 +45,8 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 @ThreadSafe
 public class Reference<M> implements Executable {
 
+    // TODO make it immutable class by using Mailbox + Channel to hold the state
+
     private static final String TAG = Reference.class.getSimpleName();
 
     @NonNull
@@ -54,9 +57,6 @@ public class Reference<M> implements Executable {
     private final Actor<M> mActor;
     @NonNull
     private final Callback mCallback;
-    @NonNls
-    @NonNull
-    private final String mActorStopped;
 
     private final Lock mLock = new ReentrantLock();
     private final Mailbox<M> mMailbox = new Mailbox<>();
@@ -81,7 +81,6 @@ public class Reference<M> implements Executable {
         mName = context.getName();
         mActor = actor;
         mCallback = callback;
-        mActorStopped = this + " is stopped";
     }
 
     @NonNull
@@ -114,7 +113,7 @@ public class Reference<M> implements Executable {
         mLock.lock();
         try {
             if (mState != State.STARTED) {
-                throw new UnsupportedOperationException(mActorStopped);
+                throw new UnsupportedOperationException(this + " is stopped!");
             }
 
             final long delayInMillis = unit.toMillis(delay);
@@ -165,8 +164,11 @@ public class Reference<M> implements Executable {
 
         mLock.lock();
         try {
-            if ((mState != State.STARTED) || (mMessenger == null)) {
-                throw new UnsupportedOperationException(mActorStopped);
+            if ((mState != State.STARTED)) {
+                throw new UnsupportedOperationException(this + " is stopped!");
+            }
+            if (mMessenger == null) {
+                throw new UnsupportedOperationException(this + " hasn't been started!");
             }
 
             success = mMessenger.attach(factory);
@@ -188,11 +190,9 @@ public class Reference<M> implements Executable {
         mLock.lock();
         try {
             if (mState == State.STARTED) {
-                if (mMessenger == null) {
-                    throw new UnsupportedOperationException(mActorStopped);
+                if (mMessenger != null) {
+                    mMessenger.detach();
                 }
-
-                mMessenger.detach();
                 success = true;
             } else {
                 if (mMessenger == null) {
@@ -202,7 +202,9 @@ public class Reference<M> implements Executable {
                         Log.d(TAG, this + " stopping the messenger"); //NON-NLS
                     }
                     success = mMessenger.stop(true);
-                    mMessenger = null;
+                    if (success) {
+                        mMessenger = null;
+                    }
                 }
             }
         } finally {
@@ -235,7 +237,7 @@ public class Reference<M> implements Executable {
         mLock.lock();
         try {
             if (mState != State.STARTED) {
-                throw new UnsupportedOperationException(mActorStopped);
+                throw new UnsupportedOperationException(this + " is stopped!");
             }
 
             if (mTask == null) {
@@ -277,7 +279,7 @@ public class Reference<M> implements Executable {
         mLock.lock();
         try {
             if (mState != State.STARTED) {
-                throw new UnsupportedOperationException(mActorStopped);
+                throw new UnsupportedOperationException(this + " is stopped!");
             }
 
             success = (mMessenger == null) || mMessenger.send(ControlMessage.PAUSE);
@@ -336,7 +338,8 @@ public class Reference<M> implements Executable {
 
     @Retention(SOURCE)
     @IntDef({ControlMessage.PAUSE, ControlMessage.STOP})
-    private @interface ControlMessage {
+    @VisibleForTesting
+    @interface ControlMessage {
         int PAUSE = 1;
         int STOP = 2;
     }

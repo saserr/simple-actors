@@ -28,6 +28,8 @@ import java.util.List;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+import static android.actor.executor.SimpleExecutor.EXECUTOR_STOPPED;
+
 @ThreadSafe
 public class FixedSizeExecutor implements Executor {
 
@@ -43,7 +45,7 @@ public class FixedSizeExecutor implements Executor {
         super();
 
         if (size < 1) {
-            throw new IllegalArgumentException("Size must be grater than zero!");
+            throw new IllegalArgumentException("Size must be grater than zero");
         }
 
         mDispatchers = new ArrayList<>(size);
@@ -62,7 +64,7 @@ public class FixedSizeExecutor implements Executor {
         mLock.lock();
         try {
             if (mStopped) {
-                throw new UnsupportedOperationException("Executor is stopped!");
+                throw new UnsupportedOperationException(EXECUTOR_STOPPED);
             }
 
             best = mDispatchers.get(0);
@@ -84,11 +86,13 @@ public class FixedSizeExecutor implements Executor {
     public final void stop() {
         mLock.lock();
         try {
-            for (final Dispatcher dispatcher : mDispatchers) {
-                dispatcher.stop();
+            if (!mStopped) {
+                for (final Dispatcher dispatcher : mDispatchers) {
+                    dispatcher.stop();
+                }
+                mDispatchers.clear();
+                mStopped = true;
             }
-            mDispatchers.clear();
-            mStopped = true;
         } finally {
             mLock.unlock();
         }

@@ -30,12 +30,6 @@ public final class Executors {
         final SimpleExecutor executor = new SimpleExecutor();
         executor.start(Messengers.from(getMainLooper()));
         return executor;
-
-    }
-
-    @NonNull
-    public static Executor singleThread() {
-        return fixedSize(1);
     }
 
     @NonNull
