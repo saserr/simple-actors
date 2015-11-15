@@ -19,20 +19,21 @@ package android.actor;
 import android.actor.util.Wait;
 import android.support.annotation.NonNull;
 
+import org.jetbrains.annotations.NotNull;
+
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
+import static android.actor.TimeMatchers.after;
 import static android.os.SystemClock.uptimeMillis;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 
 public class DelayedTellTest extends TestCase {
-
-    private static final int DELAY = 50;
-    private static final TimeUnit DELAY_UNIT = TimeUnit.MILLISECONDS;
 
     private Executor mExecutor;
     private System mSystem;
@@ -58,107 +59,134 @@ public class DelayedTellTest extends TestCase {
 
     public final void testTell() throws InterruptedException {
         final MockActor<Integer> actor = new MockActor<>();
-        final Reference<Integer> reference = mSystem.with(isA(RandomString), actor);
+        final Reference<Integer> reference = mSystem.register(a(RandomName), actor);
 
-        final long expected = uptimeMillis() + DELAY_UNIT.toMillis(DELAY);
-        assertThat("actor tell", reference.tell(a(RandomInteger), DELAY, DELAY_UNIT), is(true));
+        final int delay = isA(RandomDelay);
+        final long earliestDelivery = uptimeMillis() + delay;
+        assertThat("actor tell", reference.tell(a(RandomMessage), delay, MILLISECONDS), is(true));
 
         final List<Long> onMessages = actor.getOnMessages(1);
         assertThat("number of the actor on message invocations", onMessages.size(), is(1));
-        assertThat("actor received message time ", onMessages.get(0), is(greaterThanOrEqualTo(expected)));
+        assertThat("actor received message time ", onMessages.get(0), is(after(earliestDelivery)));
     }
 
     public final void testTellWithZeroDelay() throws InterruptedException {
         final MockActor<Integer> actor = new MockActor<>();
-        final Reference<Integer> reference = mSystem.with(isA(RandomString), actor);
+        final Reference<Integer> reference = mSystem.register(a(RandomName), actor);
 
-        final long expected = uptimeMillis();
-        assertThat("actor tell", reference.tell(a(RandomInteger), 0, DELAY_UNIT), is(true));
+        final long earliestDelivery = uptimeMillis();
+        assertThat("actor tell", reference.tell(a(RandomMessage), 0, MILLISECONDS), is(true));
 
         final List<Long> onMessages = actor.getOnMessages(1);
         assertThat("number of the actor on message invocations", onMessages.size(), is(1));
-        assertThat("actor received message time ", onMessages.get(0), is(greaterThanOrEqualTo(expected)));
+        assertThat("actor received message time ", onMessages.get(0), is(after(earliestDelivery)));
     }
 
     public final void testTellWithNegativeDelay() throws InterruptedException {
         final MockActor<Integer> actor = new MockActor<>();
-        final Reference<Integer> reference = mSystem.with(isA(RandomString), actor);
+        final Reference<Integer> reference = mSystem.register(a(RandomName), actor);
 
-        final long expected = uptimeMillis();
-        assertThat("actor tell", reference.tell(a(RandomInteger), -1, DELAY_UNIT), is(true));
+        final long earliestDelivery = uptimeMillis();
+        assertThat("actor tell", reference.tell(a(RandomMessage), -1, MILLISECONDS), is(true));
 
         final List<Long> onMessages = actor.getOnMessages(1);
         assertThat("number of the actor on message invocations", onMessages.size(), is(1));
-        assertThat("actor received message time ", onMessages.get(0), is(greaterThanOrEqualTo(expected)));
+        assertThat("actor received message time ", onMessages.get(0), is(after(earliestDelivery)));
     }
 
     public final void testTellDuringShortPauseIsReceivedAfterStart() throws InterruptedException {
         final MockActor<Integer> actor = new MockActor<>();
-        final Reference<Integer> reference = mSystem.with(isA(RandomString), actor);
+        final Reference<Integer> reference = mSystem.register(a(RandomName), actor);
 
+        final int delay = isA(RandomDelay);
         assertThat("system pause", mSystem.pause(), is(true));
-        final long expected = uptimeMillis() + DELAY_UNIT.toMillis(DELAY);
-        assertThat("actor tell", reference.tell(a(RandomInteger), DELAY, DELAY_UNIT), is(true));
+        final long earliestDelivery = uptimeMillis() + delay;
+        assertThat("actor tell", reference.tell(a(RandomMessage), delay, MILLISECONDS), is(true));
 
         assertThat("system start", mSystem.start(), is(true));
         final List<Long> onMessages = actor.getOnMessages(1);
         assertThat("number of the actor on message invocations", onMessages.size(), is(1));
-        assertThat("actor received message time ", onMessages.get(0), is(greaterThanOrEqualTo(expected)));
+        assertThat("actor received message time ", onMessages.get(0), is(after(earliestDelivery)));
     }
 
     public final void testTellDuringLongPauseIsReceivedAfterStart() throws InterruptedException {
         final MockActor<Integer> actor = new MockActor<>();
-        final Reference<Integer> reference = mSystem.with(isA(RandomString), actor);
+        final Reference<Integer> reference = mSystem.register(a(RandomName), actor);
 
+        final int delay = isA(RandomDelay);
         assertThat("system pause", mSystem.pause(), is(true));
-        final long expected = uptimeMillis() + DELAY_UNIT.toMillis(DELAY);
-        assertThat("actor tell", reference.tell(a(RandomInteger), DELAY, DELAY_UNIT), is(true));
+        final long earliestDelivery = uptimeMillis() + delay;
+        assertThat("actor tell", reference.tell(a(RandomMessage), delay, MILLISECONDS), is(true));
 
-        sleep(2 * DELAY, DELAY_UNIT);
+        sleep(2L * delay, MILLISECONDS);
 
         assertThat("system start", mSystem.start(), is(true));
         final List<Long> onMessages = actor.getOnMessages(1);
         assertThat("number of the actor on message invocations", onMessages.size(), is(1));
-        assertThat("actor received message time ", onMessages.get(0), is(greaterThanOrEqualTo(expected)));
+        assertThat("actor received message time ", onMessages.get(0), is(after(earliestDelivery)));
     }
 
     public final void testTellDuringShortPauseIsNotReceivedBeforeStop() throws InterruptedException {
         final MockActor<Integer> actor = new MockActor<>();
-        final Reference<Integer> reference = mSystem.with(isA(RandomString), actor);
+        final Reference<Integer> reference = mSystem.register(a(RandomName), actor);
 
+        final int delay = isA(RandomDelay);
         assertThat("actor pause", reference.pause(), is(true));
-        assertThat("actor tell", reference.tell(a(RandomInteger), DELAY, DELAY_UNIT), is(true));
+        assertThat("actor tell", reference.tell(a(RandomMessage), delay, MILLISECONDS), is(true));
         assertThat("actor stop", reference.stop(), is(true));
 
-        sleep(2 * DELAY, DELAY_UNIT);
+        sleep(2L * delay, MILLISECONDS);
 
         assertThat("actor received messages", actor.getOnMessages(0), is(empty()));
     }
 
     public final void testTellDuringLongPauseIsReceivedBeforeStop() throws InterruptedException {
         final MockActor<Integer> actor = new MockActor<>();
-        final Reference<Integer> reference = mSystem.with(isA(RandomString), actor);
+        final Reference<Integer> reference = mSystem.register(a(RandomName), actor);
 
+        final int delay = isA(RandomDelay);
         assertThat("actor pause", reference.pause(), is(true));
-        final long expected = uptimeMillis() + DELAY_UNIT.toMillis(DELAY);
-        assertThat("actor tell", reference.tell(a(RandomInteger), DELAY, DELAY_UNIT), is(true));
+        final long earliestDelivery = uptimeMillis() + delay;
+        assertThat("actor tell", reference.tell(a(RandomMessage), delay, MILLISECONDS), is(true));
 
-        sleep(2 * DELAY, DELAY_UNIT);
+        sleep(2L * delay, MILLISECONDS);
         assertThat("actor stop", reference.stop(), is(true));
 
         final List<Long> onMessages = actor.getOnMessages(1);
         assertThat("number of the actor on message invocations", onMessages.size(), is(1));
-        assertThat("actor received message time ", onMessages.get(0), is(greaterThanOrEqualTo(expected)));
+        assertThat("actor received message time ", onMessages.get(0), is(after(earliestDelivery)));
     }
 
     public final void testTellAfterStop() {
-        final Reference<Integer> reference = mSystem.with(isA(RandomString), new DummyActor<Integer>());
+        final Reference<Integer> reference = mSystem.register(a(RandomName), new DummyActor<Integer>());
 
         assertThat("actor stop", reference.stop(), is(true));
         try {
-            reference.tell(a(RandomInteger), DELAY, DELAY_UNIT);
+            reference.tell(a(RandomMessage), a(RandomDelay), MILLISECONDS);
             fail("sending of message did not throw UnsupportedOperationException");
         } catch (final UnsupportedOperationException ignored) {/* expected */}
+    }
+
+    private static final RandomDataGenerator<String> RandomName = RandomString;
+    private static final RandomDataGenerator<Integer> RandomMessage = RandomInteger;
+    private static final RandomDataGenerator<Integer> RandomDelay =
+            new TestCase.RandomDataGenerator<Integer>() {
+                @NotNull
+                @Override
+                public Integer next(@NotNull final Random random) {
+                    return 1 + random.nextInt(100);
+                }
+            };
+
+    private static void sleep(final long delay, @NonNull final TimeUnit unit) throws InterruptedException {
+        final long start = uptimeMillis();
+        final long end = start + unit.toMillis(delay);
+
+        long now = uptimeMillis();
+        while (now < end) {
+            Thread.sleep(end - now);
+            now = uptimeMillis();
+        }
     }
 
     private static class MockActor<M> extends Actor<M> {
@@ -190,17 +218,6 @@ public class DelayedTellTest extends TestCase {
                 mOnMessages.add(now);
                 mLock.notifyAll();
             }
-        }
-    }
-
-    private static void sleep(final long delay, @NonNull final TimeUnit unit) throws InterruptedException {
-        final long start = uptimeMillis();
-        final long end = start + unit.toMillis(delay);
-
-        long now = uptimeMillis();
-        while (now < end) {
-            Thread.sleep(end - now);
-            now = uptimeMillis();
         }
     }
 }

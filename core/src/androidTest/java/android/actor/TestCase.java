@@ -16,7 +16,7 @@
 
 package android.actor;
 
-import org.jetbrains.annotations.NotNull;
+import android.support.annotation.NonNull;
 
 import java.security.SecureRandom;
 import java.util.Random;
@@ -25,35 +25,37 @@ public abstract class TestCase extends junit.framework.TestCase {
 
     private final Random mRandom = new SecureRandom();
 
-    @NotNull
-    protected final <V> V a(@NotNull final RandomDataGenerator<V> generator) {
+    @NonNull
+    protected final <V> V a(@NonNull final RandomDataGenerator<V> generator) {
         return generator.next(mRandom);
     }
 
-    @NotNull
-    protected final <V> V isA(@NotNull final RandomDataGenerator<V> generator) {
+    @NonNull
+    protected final <V> V isA(@NonNull final RandomDataGenerator<V> generator) {
         return a(generator);
     }
 
     protected interface RandomDataGenerator<V> {
-        @NotNull
-        V next(@NotNull final Random random);
+        @NonNull
+        V next(@NonNull final Random random);
     }
 
-    protected static final RandomDataGenerator<Integer> RandomInteger = new RandomDataGenerator<Integer>() {
-        @NotNull
-        @Override
-        public Integer next(@NotNull final Random random) {
-            return random.nextInt();
-        }
-    };
+    protected static final RandomDataGenerator<Integer> RandomInteger =
+            new RandomDataGenerator<Integer>() {
+                @NonNull
+                @Override
+                public Integer next(@NonNull final Random random) {
+                    return random.nextInt();
+                }
+            };
 
-    protected static final RandomDataGenerator<String> RandomString = new RandomDataGenerator<String>() {
-        @NotNull
-        @Override
-        public String next(@NotNull final Random random) {
-            return Long.toHexString(random.nextLong());
-        }
-    };
+    protected static final RandomDataGenerator<String> RandomString =
+            new RandomDataGenerator<String>() {
+                @NonNull
+                @Override
+                public String next(@NonNull final Random random) {
+                    return Long.toHexString(random.nextLong());
+                }
+            };
 }
 

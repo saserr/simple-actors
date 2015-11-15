@@ -41,6 +41,7 @@ public class System implements Actor.Repository {
     @NonNls
     public static final String SYSTEM_STOPPED = "Actor system is stopped";
 
+    @NonNull
     private final Executor mExecutor;
 
     private final Lock mLock = new ReentrantLock();
@@ -193,13 +194,13 @@ public class System implements Actor.Repository {
 
     @NonNull
     @Override
-    public final <M> Reference<M> with(@NonNls @NonNull final String name,
-                                       @NonNull final Actor<M> actor) {
-        return with(new Actor.Name(null, name), actor);
+    public final <M> Reference<M> register(@NonNls @NonNull final String name,
+                                           @NonNull final Actor<M> actor) {
+        return register(new Actor.Name(null, name), actor);
     }
 
     @NonNull
-    private <M> Reference<M> with(@NonNull final Actor.Name name, @NonNull final Actor<M> actor) {
+    private <M> Reference<M> register(@NonNull final Actor.Name name, @NonNull final Actor<M> actor) {
         final Context context = new Context(name, this);
         final Reference<M> reference = new Reference<>(context, actor, mCallback);
 
@@ -283,9 +284,9 @@ public class System implements Actor.Repository {
 
         @NonNull
         @Override
-        public final <M> Reference<M> with(@NonNls @NonNull final String name,
-                                           @NonNull final Actor<M> actor) {
-            return mSystem.with(new Actor.Name(mName, name), actor);
+        public final <M> Reference<M> register(@NonNls @NonNull final String name,
+                                               @NonNull final Actor<M> actor) {
+            return mSystem.register(new Actor.Name(mName, name), actor);
         }
     }
 }

@@ -18,12 +18,16 @@ package android.actor;
 
 import android.actor.executor.Executable;
 import android.actor.messenger.Messengers;
+import android.os.Looper;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import static android.actor.SystemMatchers.paused;
+import static android.actor.SystemMatchers.started;
+import static android.actor.SystemMatchers.stopped;
 import static android.os.Looper.myLooper;
 import static java.util.Collections.unmodifiableList;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -55,28 +59,27 @@ public class SystemTest extends TestCase {
         super.tearDown();
     }
 
-    public final void testSubmit() {
-        assertThat("system is started", mSystem.isStarted(), is(true));
-        assertThat("system is paused", mSystem.isPaused(), is(false));
-        assertThat("system is stopped", mSystem.isStopped(), is(false));
+    public final void testRegister() {
+        assertThat("system", mSystem, is(started()));
 
-        assertThat("actor reference", mSystem.with(isA(RandomString), new DummyActor<>()), is(notNullValue()));
+        final Reference<?> reference = mSystem.register(a(RandomName), new DummyActor<>());
+        assertThat("actor reference", reference, is(notNullValue()));
 
         final List<MockExecutor.Submission> submissions = mExecutor.getSubmissions();
         assertThat("number of the executor submit invocations", submissions.size(), is(1));
         assertThat("submission is stopped", submissions.get(0).isStopped(), is(false));
     }
 
-    public final void testSubmitSameName() {
-        assertThat("system is started", mSystem.isStarted(), is(true));
-        assertThat("system is paused", mSystem.isPaused(), is(false));
-        assertThat("system is stopped", mSystem.isStopped(), is(false));
+    public final void testRegisterAgainWithSameName() {
+        assertThat("system", mSystem, is(started()));
 
-        final String name = isA(RandomString);
-        assertThat("actor reference", mSystem.with(name, new DummyActor<>()), is(notNullValue()));
+        final String name = isA(RandomName);
+        final Reference<?> reference = mSystem.register(name, new DummyActor<>());
+        assertThat("actor reference", reference, is(notNullValue()));
+
         try {
-            mSystem.with(name, new DummyActor<>());
-            fail("submitting of actor did not throw IllegalArgumentException");
+            mSystem.register(name, new DummyActor<>());
+            fail("registering actor did not throw IllegalArgumentException");
         } catch (final IllegalArgumentException ignored) {/* expected */}
 
         final List<MockExecutor.Submission> submissions = mExecutor.getSubmissions();
@@ -84,17 +87,15 @@ public class SystemTest extends TestCase {
         assertThat("submission is stopped", submissions.get(0).isStopped(), is(false));
     }
 
-    public final void testSubmitSameNameAfterActorStop() {
-        assertThat("system is started", mSystem.isStarted(), is(true));
-        assertThat("system is paused", mSystem.isPaused(), is(false));
-        assertThat("system is stopped", mSystem.isStopped(), is(false));
+    public final void testRegisterSameNameAfterActorStop() {
+        assertThat("system", mSystem, is(started()));
 
-        final String name = isA(RandomString);
-        final Reference<Object> reference = mSystem.with(name, new DummyActor<>());
+        final String name = isA(RandomName);
+        final Reference<?> reference = mSystem.register(name, new DummyActor<>());
         assertThat("actor reference", reference, is(notNullValue()));
 
         assertThat("actor stop", reference.stop(), is(true));
-        mSystem.with(name, new DummyActor<>());
+        mSystem.register(name, new DummyActor<>());
 
         final List<MockExecutor.Submission> submissions = mExecutor.getSubmissions();
         assertThat("number of the executor submit invocations", submissions.size(), is(2));
@@ -103,17 +104,13 @@ public class SystemTest extends TestCase {
     }
 
     public final void testDoubleStart() {
-        assertThat("system is started", mSystem.isStarted(), is(true));
-        assertThat("system is paused", mSystem.isPaused(), is(false));
-        assertThat("system is stopped", mSystem.isStopped(), is(false));
+        assertThat("system", mSystem, is(started()));
 
-        final Reference<Integer> reference = mSystem.with(isA(RandomString), new DummyActor<Integer>());
+        final Reference<?> reference = mSystem.register(a(RandomName), new DummyActor<>());
         assertThat("actor reference", reference, is(notNullValue()));
 
         assertThat("system start", mSystem.start(), is(true));
-        assertThat("system is started", mSystem.isStarted(), is(true));
-        assertThat("system is paused", mSystem.isPaused(), is(false));
-        assertThat("system is stopped", mSystem.isStopped(), is(false));
+        assertThat("system", mSystem, is(started()));
 
         assertThat("actor is stopped", reference.isStopped(), is(false));
         final List<MockExecutor.Submission> submissions = mExecutor.getSubmissions();
@@ -122,17 +119,13 @@ public class SystemTest extends TestCase {
     }
 
     public final void testPause() {
-        assertThat("system is started", mSystem.isStarted(), is(true));
-        assertThat("system is paused", mSystem.isPaused(), is(false));
-        assertThat("system is stopped", mSystem.isStopped(), is(false));
+        assertThat("system", mSystem, is(started()));
 
-        final Reference<Integer> reference = mSystem.with(isA(RandomString), new DummyActor<Integer>());
+        final Reference<?> reference = mSystem.register(a(RandomName), new DummyActor<>());
         assertThat("actor reference", reference, is(notNullValue()));
 
         assertThat("system pause", mSystem.pause(), is(true));
-        assertThat("system is started", mSystem.isStarted(), is(false));
-        assertThat("system is paused", mSystem.isPaused(), is(true));
-        assertThat("system is stopped", mSystem.isStopped(), is(false));
+        assertThat("system", mSystem, is(paused()));
 
         assertThat("actor is stopped", reference.isStopped(), is(false));
         final List<MockExecutor.Submission> submissions = mExecutor.getSubmissions();
@@ -141,18 +134,14 @@ public class SystemTest extends TestCase {
     }
 
     public final void testDoublePause() {
-        assertThat("system is started", mSystem.isStarted(), is(true));
-        assertThat("system is paused", mSystem.isPaused(), is(false));
-        assertThat("system is stopped", mSystem.isStopped(), is(false));
+        assertThat("system", mSystem, is(started()));
 
-        final Reference<Integer> reference = mSystem.with(isA(RandomString), new DummyActor<Integer>());
+        final Reference<?> reference = mSystem.register(a(RandomName), new DummyActor<>());
         assertThat("actor reference", reference, is(notNullValue()));
 
         assertThat("system pause", mSystem.pause(), is(true));
         assertThat("system pause", mSystem.pause(), is(true));
-        assertThat("system is started", mSystem.isStarted(), is(false));
-        assertThat("system is paused", mSystem.isPaused(), is(true));
-        assertThat("system is stopped", mSystem.isStopped(), is(false));
+        assertThat("system", mSystem, is(paused()));
 
         assertThat("actor is stopped", reference.isStopped(), is(false));
         final List<MockExecutor.Submission> submissions = mExecutor.getSubmissions();
@@ -160,13 +149,11 @@ public class SystemTest extends TestCase {
         assertThat("submission is stopped", submissions.get(0).isStopped(), is(true));
     }
 
-    public final void testSubmitAfterPause() {
+    public final void testRegisterAfterPause() {
         assertThat("system pause", mSystem.pause(), is(true));
-        assertThat("system is started", mSystem.isStarted(), is(false));
-        assertThat("system is paused", mSystem.isPaused(), is(true));
-        assertThat("system is stopped", mSystem.isStopped(), is(false));
+        assertThat("system", mSystem, is(paused()));
 
-        final Reference<Integer> reference = mSystem.with(isA(RandomString), new DummyActor<Integer>());
+        final Reference<?> reference = mSystem.register(a(RandomName), new DummyActor<>());
         assertThat("actor reference", reference, is(notNullValue()));
 
         assertThat("actor is stopped", reference.isStopped(), is(false));
@@ -174,18 +161,14 @@ public class SystemTest extends TestCase {
     }
 
     public final void testStartAfterPause() {
-        assertThat("system is started", mSystem.isStarted(), is(true));
-        assertThat("system is paused", mSystem.isPaused(), is(false));
-        assertThat("system is stopped", mSystem.isStopped(), is(false));
+        assertThat("system", mSystem, is(started()));
 
-        final Reference<Integer> reference = mSystem.with(isA(RandomString), new DummyActor<Integer>());
+        final Reference<?> reference = mSystem.register(a(RandomName), new DummyActor<>());
         assertThat("actor reference", reference, is(notNullValue()));
 
         assertThat("system pause", mSystem.pause(), is(true));
         assertThat("system start", mSystem.start(), is(true));
-        assertThat("system is started", mSystem.isStarted(), is(true));
-        assertThat("system is paused", mSystem.isPaused(), is(false));
-        assertThat("system is stopped", mSystem.isStopped(), is(false));
+        assertThat("system", mSystem, is(started()));
 
         assertThat("actor is stopped", reference.isStopped(), is(false));
         final List<MockExecutor.Submission> submissions = mExecutor.getSubmissions();
@@ -195,17 +178,13 @@ public class SystemTest extends TestCase {
     }
 
     public final void testStop() {
-        assertThat("system is started", mSystem.isStarted(), is(true));
-        assertThat("system is paused", mSystem.isPaused(), is(false));
-        assertThat("system is stopped", mSystem.isStopped(), is(false));
+        assertThat("system", mSystem, is(started()));
 
-        final Reference<Integer> reference = mSystem.with(isA(RandomString), new DummyActor<Integer>());
+        final Reference<?> reference = mSystem.register(a(RandomName), new DummyActor<>());
         assertThat("actor reference", reference, is(notNullValue()));
 
         assertThat("system stop", mSystem.stop(false), is(true));
-        assertThat("system is started", mSystem.isStarted(), is(false));
-        assertThat("system is paused", mSystem.isPaused(), is(false));
-        assertThat("system is stopped", mSystem.isStopped(), is(true));
+        assertThat("system", mSystem, is(stopped()));
 
         assertThat("actor is stopped", reference.isStopped(), is(true));
         final List<MockExecutor.Submission> submissions = mExecutor.getSubmissions();
@@ -214,18 +193,14 @@ public class SystemTest extends TestCase {
     }
 
     public final void testDoubleStop() {
-        assertThat("system is started", mSystem.isStarted(), is(true));
-        assertThat("system is paused", mSystem.isPaused(), is(false));
-        assertThat("system is stopped", mSystem.isStopped(), is(false));
+        assertThat("system", mSystem, is(started()));
 
-        final Reference<Integer> reference = mSystem.with(isA(RandomString), new DummyActor<Integer>());
+        final Reference<?> reference = mSystem.register(a(RandomName), new DummyActor<>());
         assertThat("actor reference", reference, is(notNullValue()));
 
         assertThat("system stop", mSystem.stop(false), is(true));
         assertThat("system stop", mSystem.stop(false), is(true));
-        assertThat("system is started", mSystem.isStarted(), is(false));
-        assertThat("system is paused", mSystem.isPaused(), is(false));
-        assertThat("system is stopped", mSystem.isStopped(), is(true));
+        assertThat("system", mSystem, is(stopped()));
 
         assertThat("actor is stopped", reference.isStopped(), is(true));
         final List<MockExecutor.Submission> submissions = mExecutor.getSubmissions();
@@ -233,24 +208,20 @@ public class SystemTest extends TestCase {
         assertThat("submission is stopped", submissions.get(0).isStopped(), is(true));
     }
 
-    public final void testSubmitAfterStop() {
-        assertThat("system is started", mSystem.isStarted(), is(true));
-        assertThat("system is paused", mSystem.isPaused(), is(false));
-        assertThat("system is stopped", mSystem.isStopped(), is(false));
+    public final void testRegisterAfterStop() {
+        assertThat("system", mSystem, is(started()));
 
         assertThat("system stop", mSystem.stop(false), is(true));
         try {
-            mSystem.with(isA(RandomString), new DummyActor<>());
-            fail("submitting of actor did not throw UnsupportedOperationException");
+            mSystem.register(a(RandomName), new DummyActor<>());
+            fail("registering actor did not throw UnsupportedOperationException");
         } catch (final UnsupportedOperationException ignored) {/* expected */}
 
         assertThat("executor submissions", mExecutor.getSubmissions(), is(empty()));
     }
 
     public final void testStartAfterStop() {
-        assertThat("system is started", mSystem.isStarted(), is(true));
-        assertThat("system is paused", mSystem.isPaused(), is(false));
-        assertThat("system is stopped", mSystem.isStopped(), is(false));
+        assertThat("system", mSystem, is(started()));
 
         assertThat("system stop", mSystem.stop(false), is(true));
         try {
@@ -260,9 +231,7 @@ public class SystemTest extends TestCase {
     }
 
     public final void testPauseAfterStop() {
-        assertThat("system is started", mSystem.isStarted(), is(true));
-        assertThat("system is paused", mSystem.isPaused(), is(false));
-        assertThat("system is stopped", mSystem.isStopped(), is(false));
+        assertThat("system", mSystem, is(started()));
 
         assertThat("system stop", mSystem.stop(false), is(true));
         try {
@@ -272,40 +241,32 @@ public class SystemTest extends TestCase {
     }
 
     public final void testStopAfterPauseWithPendingMessages() {
-        assertThat("system is started", mSystem.isStarted(), is(true));
-        assertThat("system is paused", mSystem.isPaused(), is(false));
-        assertThat("system is stopped", mSystem.isStopped(), is(false));
+        assertThat("system", mSystem, is(started()));
 
         final MockActor<Integer> actor = new MockActor<>();
-        final Reference<Integer> reference = mSystem.with(isA(RandomString), actor);
+        final Reference<Integer> reference = mSystem.register(a(RandomName), actor);
         assertThat("actor reference", reference, is(notNullValue()));
 
         assertThat("system pause", mSystem.pause(), is(true));
-        final int expected = isA(RandomInteger);
-        assertThat("actor tell", reference.tell(expected), is(true));
+        final int message = isA(RandomMessage);
+        assertThat("actor tell", reference.tell(message), is(true));
         assertThat("system stop", mSystem.stop(false), is(true));
-        assertThat("system is started", mSystem.isStarted(), is(false));
-        assertThat("system is paused", mSystem.isPaused(), is(false));
-        assertThat("system is stopped", mSystem.isStopped(), is(true));
+        assertThat("system", mSystem, is(stopped()));
 
         assertThat("actor is stopped", reference.isStopped(), is(true));
         final List<Integer> messages = actor.getMessages();
         assertThat("number of actor received messages", messages.size(), is(1));
-        assertThat("actor received message", messages.get(0), is(expected));
+        assertThat("actor received message", messages.get(0), is(message));
     }
 
     public final void testImmediateStop() {
-        assertThat("system is started", mSystem.isStarted(), is(true));
-        assertThat("system is paused", mSystem.isPaused(), is(false));
-        assertThat("system is stopped", mSystem.isStopped(), is(false));
+        assertThat("system", mSystem, is(started()));
 
-        final Reference<Integer> reference = mSystem.with(isA(RandomString), new DummyActor<Integer>());
+        final Reference<?> reference = mSystem.register(a(RandomName), new DummyActor<>());
         assertThat("actor reference", reference, is(notNullValue()));
 
         assertThat("system stop", mSystem.stop(true), is(true));
-        assertThat("system is started", mSystem.isStarted(), is(false));
-        assertThat("system is paused", mSystem.isPaused(), is(false));
-        assertThat("system is stopped", mSystem.isStopped(), is(true));
+        assertThat("system", mSystem, is(stopped()));
 
         assertThat("reference is stopped", reference.isStopped(), is(true));
         final List<MockExecutor.Submission> submissions = mExecutor.getSubmissions();
@@ -314,18 +275,14 @@ public class SystemTest extends TestCase {
     }
 
     public final void testDoubleImmediateStop() {
-        assertThat("system is started", mSystem.isStarted(), is(true));
-        assertThat("system is paused", mSystem.isPaused(), is(false));
-        assertThat("system is stopped", mSystem.isStopped(), is(false));
+        assertThat("system", mSystem, is(started()));
 
-        final Reference<Integer> reference = mSystem.with(isA(RandomString), new DummyActor<Integer>());
+        final Reference<?> reference = mSystem.register(a(RandomName), new DummyActor<>());
         assertThat("actor reference", reference, is(notNullValue()));
 
         assertThat("system stop", mSystem.stop(true), is(true));
         assertThat("system stop", mSystem.stop(true), is(true));
-        assertThat("system is started", mSystem.isStarted(), is(false));
-        assertThat("system is paused", mSystem.isPaused(), is(false));
-        assertThat("system is stopped", mSystem.isStopped(), is(true));
+        assertThat("system", mSystem, is(stopped()));
 
         assertThat("reference is stopped", reference.isStopped(), is(true));
         final List<MockExecutor.Submission> submissions = mExecutor.getSubmissions();
@@ -333,24 +290,20 @@ public class SystemTest extends TestCase {
         assertThat("submission is stopped", submissions.get(0).isStopped(), is(true));
     }
 
-    public final void testSubmitAfterImmediateStop() {
-        assertThat("system is started", mSystem.isStarted(), is(true));
-        assertThat("system is paused", mSystem.isPaused(), is(false));
-        assertThat("system is stopped", mSystem.isStopped(), is(false));
+    public final void testRegisterAfterImmediateStop() {
+        assertThat("system", mSystem, is(started()));
 
         assertThat("system stop", mSystem.stop(true), is(true));
         try {
-            mSystem.with(isA(RandomString), new DummyActor<>());
-            fail("submitting of actor did not throw UnsupportedOperationException");
+            mSystem.register(a(RandomName), new DummyActor<>());
+            fail("registering actor did not throw UnsupportedOperationException");
         } catch (final UnsupportedOperationException ignored) {/* expected */}
 
         assertThat("executor submissions", mExecutor.getSubmissions(), is(empty()));
     }
 
     public final void testStartAfterImmediateStop() {
-        assertThat("system is started", mSystem.isStarted(), is(true));
-        assertThat("system is paused", mSystem.isPaused(), is(false));
-        assertThat("system is stopped", mSystem.isStopped(), is(false));
+        assertThat("system", mSystem, is(started()));
 
         assertThat("system stop", mSystem.stop(true), is(true));
         try {
@@ -360,25 +313,24 @@ public class SystemTest extends TestCase {
     }
 
     public final void testImmediateStopAfterPauseWithPendingMessages() {
-        assertThat("system is started", mSystem.isStarted(), is(true));
-        assertThat("system is paused", mSystem.isPaused(), is(false));
-        assertThat("system is stopped", mSystem.isStopped(), is(false));
+        assertThat("system", mSystem, is(started()));
 
         final MockActor<Integer> actor = new MockActor<>();
-        final Reference<Integer> reference = mSystem.with(isA(RandomString), actor);
+        final Reference<Integer> reference = mSystem.register(a(RandomName), actor);
         assertThat("actor reference", reference, is(notNullValue()));
 
         assertThat("system pause", mSystem.pause(), is(true));
-        final int expected = isA(RandomInteger);
-        assertThat("actor tell", reference.tell(expected), is(true));
+        final int message = isA(RandomMessage);
+        assertThat("actor tell", reference.tell(message), is(true));
         assertThat("system stop", mSystem.stop(true), is(true));
-        assertThat("system is started", mSystem.isStarted(), is(false));
-        assertThat("system is paused", mSystem.isPaused(), is(false));
-        assertThat("system is stopped", mSystem.isStopped(), is(true));
+        assertThat("system", mSystem, is(stopped()));
 
         assertThat("actor is stopped", reference.isStopped(), is(true));
         assertThat("actor received messages", actor.getMessages(), is(empty()));
     }
+
+    private static final RandomDataGenerator<String> RandomName = RandomString;
+    private static final RandomDataGenerator<Integer> RandomMessage = RandomInteger;
 
     private static class MockExecutor implements Executor {
 
@@ -415,7 +367,9 @@ public class SystemTest extends TestCase {
                 super();
 
                 mExecutable = executable;
-                mExecutable.attach(Messengers.from(myLooper()));
+                final Looper looper = myLooper();
+                assertThat("looper", looper, is(notNullValue()));
+                mExecutable.attach(Messengers.from(looper));
             }
 
             public final boolean isStopped() {

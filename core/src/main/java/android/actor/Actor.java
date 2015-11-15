@@ -32,7 +32,8 @@ public abstract class Actor<M> {
 
     public interface Repository {
         @NonNull
-        <M> Reference<M> with(@NonNls @NonNull final String name, @NonNull final Actor<M> actor);
+        <M> Reference<M> register(@NonNls @NonNull final String name,
+                                  @NonNull final Actor<M> actor);
     }
 
     public static class Name {

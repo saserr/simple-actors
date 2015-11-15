@@ -4,6 +4,7 @@
       <w>executables</w>
       <w>hamcrest</w>
       <w>loopers</w>
+      <w>matchers</w>
     </words>
   </dictionary>
 </component>
