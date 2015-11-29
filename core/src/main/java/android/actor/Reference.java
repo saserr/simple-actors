@@ -194,22 +194,6 @@ public class Reference<M> implements Executable {
         return success;
     }
 
-    @Override
-    public final int hashCode() {
-        return mName.hashCode();
-    }
-
-    @Override
-    public final boolean equals(@Nullable final Object other) {
-        boolean result = this == other;
-
-        if (!result && (other instanceof Reference<?>)) {
-            result = mName.equals(((Reference<?>) other).mName);
-        }
-
-        return result;
-    }
-
     @NonNls
     @NonNull
     @Override

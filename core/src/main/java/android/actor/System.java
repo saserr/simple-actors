@@ -23,8 +23,8 @@ import android.util.Log;
 import org.jetbrains.annotations.NonNls;
 
 import java.lang.annotation.Retention;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -45,7 +45,7 @@ public class System implements Actor.Repository {
     private final Executor mExecutor;
 
     private final Lock mLock = new ReentrantLock();
-    private final Set<Reference<?>> mReferences = new HashSet<>();
+    private final Map<Actor.Name, Reference<?>> mReferences = new HashMap<>();
 
     private final Reference.Callback mCallback = new Reference.Callback() {
         @Override
@@ -110,7 +110,7 @@ public class System implements Actor.Repository {
             switch (mState) {
                 case State.PAUSED:
                     mState = State.STARTED;
-                    for (final Reference<?> reference : mReferences) {
+                    for (final Reference<?> reference : mReferences.values()) {
                         if (!reference.start(mExecutor)) {
                             Log.w(TAG, reference + " failed to start"); //NON-NLS
                             success = false;
@@ -140,7 +140,7 @@ public class System implements Actor.Repository {
             switch (mState) {
                 case State.STARTED:
                     mState = State.PAUSED;
-                    for (final Reference<?> reference : mReferences) {
+                    for (final Reference<?> reference : mReferences.values()) {
                         if (!reference.pause()) {
                             Log.w(TAG, reference + " failed to pause"); //NON-NLS
                             success = false;
@@ -171,7 +171,7 @@ public class System implements Actor.Repository {
                 case State.STARTED:
                 case State.PAUSED:
                     mState = State.STOPPED;
-                    for (final Reference<?> reference : mReferences) {
+                    for (final Reference<?> reference : mReferences.values()) {
                         if (!reference.stop(immediately)) {
                             Log.w(TAG, reference + " failed to stop"); //NON-NLS
                             success = false;
@@ -202,25 +202,27 @@ public class System implements Actor.Repository {
     @NonNull
     private <M> Reference<M> register(@NonNull final Actor.Name name, @NonNull final Actor<M> actor) {
         final Context context = new Context(name, this);
-        final Reference<M> reference = new Reference<>(context, actor, mCallback);
+        final Reference<M> reference;
 
         mLock.lock();
         try {
             if (mState == State.STOPPED) {
                 throw new UnsupportedOperationException(SYSTEM_STOPPED);
             }
-            if (mReferences.contains(reference)) {
-                throw new IllegalArgumentException(reference + " is already registered!");
+            if (mReferences.containsKey(name)) {
+                throw new IllegalArgumentException(name + " is already registered!");
             }
+
+            reference = new Reference<>(context, actor, mCallback);
 
             if (mState == State.STARTED) {
                 if (reference.start(mExecutor)) {
-                    mReferences.add(reference);
+                    mReferences.put(name, reference);
                 } else {
                     throw new UnsupportedOperationException(reference + " could not be started!");
                 }
             } else {
-                mReferences.add(reference);
+                mReferences.put(name, reference);
             }
 
             Log.d(TAG, reference + " added"); //NON-NLS
@@ -234,10 +236,12 @@ public class System implements Actor.Repository {
     private <M> void stop(@NonNull final Reference<M> reference) {
         mLock.lock();
         try {
-            if (mReferences.remove(reference)) {
+            final Actor.Name name = reference.getName();
+            if (mReferences.containsKey(name)) {
+                mReferences.remove(name);
                 Log.d(TAG, reference + " removed"); //NON-NLS
 
-                for (final Reference<?> other : mReferences) {
+                for (final Reference<?> other : mReferences.values()) {
                     if (reference.isParentOf(other)) {
                         other.stop(true);
                     }
