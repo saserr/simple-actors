@@ -35,6 +35,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+import static android.util.Log.DEBUG;
+import static android.util.Log.INFO;
 import static java.lang.annotation.RetentionPolicy.SOURCE;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
@@ -160,7 +162,7 @@ public class Reference<M> implements Executable {
             mLock.unlock();
         }
 
-        if (success) {
+        if (success && Log.isLoggable(TAG, DEBUG)) {
             Log.d(TAG, this + " attached to new messenger"); //NON-NLS
         }
 
@@ -177,7 +179,9 @@ public class Reference<M> implements Executable {
                 if (mMessenger == null) {
                     success = true;
                 } else {
-                    Log.d(TAG, this + " stopping the messenger"); //NON-NLS
+                    if (Log.isLoggable(TAG, DEBUG)) {
+                        Log.d(TAG, this + " stopping the messenger"); //NON-NLS
+                    }
                     success = mMessenger.stop(true);
                     mMessenger = null;
                 }
@@ -193,7 +197,7 @@ public class Reference<M> implements Executable {
             mLock.unlock();
         }
 
-        if (success) {
+        if (success && Log.isLoggable(TAG, DEBUG)) {
             Log.d(TAG, this + " detached from the messenger"); //NON-NLS
         }
 
@@ -231,7 +235,7 @@ public class Reference<M> implements Executable {
             mLock.unlock();
         }
 
-        if (success) {
+        if (success && Log.isLoggable(TAG, INFO)) {
             Log.i(TAG, this + " started"); //NON-NLS
         }
 
@@ -252,7 +256,7 @@ public class Reference<M> implements Executable {
             mLock.unlock();
         }
 
-        if (success) {
+        if (success && Log.isLoggable(TAG, INFO)) {
             Log.i(TAG, this + " paused"); //NON-NLS
         }
 
@@ -284,7 +288,7 @@ public class Reference<M> implements Executable {
             success = stop();
         }
 
-        if (success) {
+        if (success && Log.isLoggable(TAG, INFO)) {
             Log.i(TAG, this + " stopped"); //NON-NLS
         }
 
@@ -354,7 +358,7 @@ public class Reference<M> implements Executable {
                     processed = false;
             }
 
-            if (processed) {
+            if (processed && Log.isLoggable(TAG, DEBUG)) {
                 Log.d(TAG, mReference + " handled system message " + message); //NON-NLS
             }
 
@@ -375,7 +379,7 @@ public class Reference<M> implements Executable {
                 }
             }
 
-            if (success) {
+            if (success && Log.isLoggable(TAG, DEBUG)) {
                 Log.d(TAG, mReference + " handled user message " + message); //NON-NLS
             }
 

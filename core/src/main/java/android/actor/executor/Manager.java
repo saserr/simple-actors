@@ -34,6 +34,9 @@ import java.util.HashSet;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+import static android.util.Log.DEBUG;
+import static android.util.Log.INFO;
+
 @ThreadSafe
 public class Manager {
 
@@ -120,7 +123,10 @@ public class Manager {
         try {
             if (mExecutables.add(executable)) {
                 if ((mFactory == null) || executable.attach(mFactory)) {
-                    Log.d(TAG, executable + " submitted"); //NON-NLS
+                    if (Log.isLoggable(TAG, DEBUG)) {
+                        Log.d(TAG, executable + " submitted"); //NON-NLS
+                    }
+
                     submission = new Executor.Submission() {
                         @Override
                         public boolean stop() {
@@ -151,7 +157,9 @@ public class Manager {
                     submission = null;
                 }
             } else {
-                Log.i(TAG, executable + " already submitted"); //NON-NLS
+                if (Log.isLoggable(TAG, INFO)) {
+                    Log.i(TAG, executable + " already submitted"); //NON-NLS
+                }
                 submission = null;
             }
         } finally {

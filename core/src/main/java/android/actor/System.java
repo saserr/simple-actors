@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+import static android.util.Log.DEBUG;
 import static java.lang.annotation.RetentionPolicy.SOURCE;
 
 @ThreadSafe
@@ -231,7 +232,9 @@ public class System implements Actor.Repository {
                 mReferences.put(name, reference);
             }
 
-            Log.d(TAG, name + " added"); //NON-NLS
+            if (Log.isLoggable(TAG, DEBUG)) {
+                Log.d(TAG, name + " added"); //NON-NLS
+            }
         } finally {
             mLock.unlock();
         }
@@ -244,7 +247,9 @@ public class System implements Actor.Repository {
         try {
             if (mReferences.containsKey(name)) {
                 mReferences.remove(name);
-                Log.d(TAG, name + " removed"); //NON-NLS
+                if (Log.isLoggable(TAG, DEBUG)) {
+                    Log.d(TAG, name + " removed"); //NON-NLS
+                }
 
                 for (final Map.Entry<Actor.Name, Reference<?>> other : mReferences.entrySet()) {
                     if (name.isParentOf(other.getKey())) {
