@@ -61,7 +61,7 @@ public class Mailbox<M> {
     public final boolean put(final int message) {
         final boolean result;
 
-        final Message<M> msg = new Message.System<>(message);
+        final Message<M> msg = new Message.Control<>(message);
         mLock.lock();
         try {
             result = mMessages.offer(msg);
@@ -107,11 +107,11 @@ public class Mailbox<M> {
         boolean send(@NonNull final Messenger<M> messenger);
 
         @ThreadSafe
-        final class System<M> implements Message<M> {
+        final class Control<M> implements Message<M> {
 
             private final int mMessage;
 
-            public System(final int message) {
+            public Control(final int message) {
                 super();
 
                 mMessage = message;

@@ -50,7 +50,7 @@ public class LooperMessenger<M> implements Messenger<M> {
     }
 
     public final boolean hasUndeliveredMessages() {
-        return mHandler.hasMessages(MessageType.SYSTEM) ||
+        return mHandler.hasMessages(MessageType.CONTROL) ||
                 mHandler.hasMessages(MessageType.USER);
     }
 
@@ -61,7 +61,7 @@ public class LooperMessenger<M> implements Messenger<M> {
     @Override
     public final boolean send(final int message) {
         return (!hasUndeliveredMessages() && isCurrentThread() && mCallback.onMessage(message)) ||
-                mHandler.sendMessage(mHandler.obtainMessage(MessageType.SYSTEM, message, 0));
+                mHandler.sendMessage(mHandler.obtainMessage(MessageType.CONTROL, message, 0));
     }
 
     @Override
@@ -83,7 +83,7 @@ public class LooperMessenger<M> implements Messenger<M> {
     @Override
     public final boolean stop(final boolean immediately) {
         if (immediately) {
-            mHandler.removeMessages(MessageType.SYSTEM);
+            mHandler.removeMessages(MessageType.CONTROL);
             mHandler.removeMessages(MessageType.USER);
         }
 
@@ -91,9 +91,9 @@ public class LooperMessenger<M> implements Messenger<M> {
     }
 
     @Retention(SOURCE)
-    @IntDef({MessageType.SYSTEM, MessageType.USER})
+    @IntDef({MessageType.CONTROL, MessageType.USER})
     private @interface MessageType {
-        int SYSTEM = 1;
+        int CONTROL = 1;
         int USER = 2;
     }
 
@@ -115,7 +115,7 @@ public class LooperMessenger<M> implements Messenger<M> {
             final boolean processed;
 
             switch (message.what) {
-                case MessageType.SYSTEM:
+                case MessageType.CONTROL:
                     processed = mCallback.onMessage(message.arg1);
                     break;
                 case MessageType.USER:

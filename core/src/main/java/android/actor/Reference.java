@@ -135,7 +135,7 @@ public class Reference<M> implements Executable {
                 }
 
                 success = mMessenger.isAttached() ?
-                        mMessenger.send(SystemMessage.STOP) :
+                        mMessenger.send(ControlMessage.STOP) :
                         mMessenger.stop(false);
             }
 
@@ -251,7 +251,7 @@ public class Reference<M> implements Executable {
                 throw new UnsupportedOperationException(mActorStopped);
             }
 
-            success = mMessenger.send(SystemMessage.PAUSE);
+            success = mMessenger.send(ControlMessage.PAUSE);
         } finally {
             mLock.unlock();
         }
@@ -300,8 +300,8 @@ public class Reference<M> implements Executable {
     }
 
     @Retention(SOURCE)
-    @IntDef({SystemMessage.PAUSE, SystemMessage.STOP})
-    private @interface SystemMessage {
+    @IntDef({ControlMessage.PAUSE, ControlMessage.STOP})
+    private @interface ControlMessage {
         int PAUSE = 1;
         int STOP = 2;
     }
@@ -347,11 +347,11 @@ public class Reference<M> implements Executable {
             final boolean processed;
 
             switch (message) {
-                case SystemMessage.PAUSE:
+                case ControlMessage.PAUSE:
                     processed = (mSubmission == null) || mSubmission.stop();
                     mSubmission = null;
                     break;
-                case SystemMessage.STOP:
+                case ControlMessage.STOP:
                     processed = mReference.stop(true);
                     break;
                 default:
