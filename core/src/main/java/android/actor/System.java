@@ -49,8 +49,8 @@ public class System implements Actor.Repository {
 
     private final Reference.Callback mCallback = new Reference.Callback() {
         @Override
-        public <M> void onStop(@NonNull final Reference<M> reference) {
-            stop(reference);
+        public void onStop(@NonNull final Actor.Name name) {
+            stop(name);
         }
     };
 
@@ -225,7 +225,7 @@ public class System implements Actor.Repository {
                 mReferences.put(name, reference);
             }
 
-            Log.d(TAG, reference + " added"); //NON-NLS
+            Log.d(TAG, name + " added"); //NON-NLS
         } finally {
             mLock.unlock();
         }
@@ -233,17 +233,16 @@ public class System implements Actor.Repository {
         return reference;
     }
 
-    private <M> void stop(@NonNull final Reference<M> reference) {
+    private void stop(@NonNull final Actor.Name name) {
         mLock.lock();
         try {
-            final Actor.Name name = reference.getName();
             if (mReferences.containsKey(name)) {
                 mReferences.remove(name);
-                Log.d(TAG, reference + " removed"); //NON-NLS
+                Log.d(TAG, name + " removed"); //NON-NLS
 
-                for (final Reference<?> other : mReferences.values()) {
-                    if (reference.isParentOf(other)) {
-                        other.stop(true);
+                for (final Map.Entry<Actor.Name, Reference<?>> other : mReferences.entrySet()) {
+                    if (name.isParentOf(other.getKey())) {
+                        other.getValue().stop(true);
                     }
                 }
             }

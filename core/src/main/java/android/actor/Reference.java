@@ -87,10 +87,6 @@ public class Reference<M> implements Executable {
         return result;
     }
 
-    public final <N> boolean isParentOf(@NonNull final Reference<N> other) {
-        return mName.isParentOf(other.mName);
-    }
-
     public final boolean tell(@NonNull final M message) {
         return tell(message, 0, MILLISECONDS);
     }
@@ -257,7 +253,7 @@ public class Reference<M> implements Executable {
         boolean success = false;
 
         if (immediately) {
-            mCallback.onStop(this);
+            mCallback.onStop(mName);
 
             mLock.lock();
             try {
@@ -286,7 +282,7 @@ public class Reference<M> implements Executable {
     }
 
     public interface Callback {
-        <M> void onStop(@NonNull final Reference<M> reference);
+        void onStop(@NonNull final Actor.Name name);
     }
 
     @Retention(SOURCE)
