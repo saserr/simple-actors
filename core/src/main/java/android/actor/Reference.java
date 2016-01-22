@@ -307,7 +307,7 @@ public class Reference<M> implements Executable {
     }
 
     @NotThreadSafe
-    private static class Task<M> implements Messenger.Callback<M> {
+    private static final class Task<M> implements Messenger.Callback<M> {
 
         @NonNull
         private final Reference<M> mReference;
@@ -319,14 +319,14 @@ public class Reference<M> implements Executable {
         @Nullable
         private Executor.Submission mSubmission;
 
-        Task(@NonNull final Reference<M> reference, @NonNull final Actor<M> actor) {
+        private Task(@NonNull final Reference<M> reference, @NonNull final Actor<M> actor) {
             super();
 
             mReference = reference;
             mActor = actor;
         }
 
-        public final boolean start(@NonNull final Executor executor) {
+        public boolean start(@NonNull final Executor executor) {
             final boolean stopped = stop();
             if (stopped) {
                 mSubmission = executor.submit(mReference);
@@ -334,7 +334,7 @@ public class Reference<M> implements Executable {
             return stopped && (mSubmission != null);
         }
 
-        public final boolean stop() {
+        public boolean stop() {
             final boolean success = (mSubmission == null) || mSubmission.stop();
             if (success) {
                 mSubmission = null;
@@ -343,7 +343,7 @@ public class Reference<M> implements Executable {
         }
 
         @Override
-        public final boolean onMessage(@NonNls final int message) {
+        public boolean onMessage(@NonNls final int message) {
             final boolean processed;
 
             switch (message) {
@@ -366,7 +366,7 @@ public class Reference<M> implements Executable {
         }
 
         @Override
-        public final boolean onMessage(@NonNls @NonNull final M message) {
+        public boolean onMessage(@NonNls @NonNull final M message) {
             final boolean success = mDirectCall.tryAcquire();
 
             if (success) {

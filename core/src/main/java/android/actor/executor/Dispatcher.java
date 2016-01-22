@@ -64,21 +64,21 @@ public class Dispatcher {
     }
 
     @ThreadSafe
-    private static class Loop implements Runnable {
+    private static final class Loop implements Runnable {
 
         @NonNull
         private final Manager mManager;
 
         private final AtomicReference<Looper> mLooper = new AtomicReference<>();
 
-        Loop(@NonNull final Manager manager) {
+        private Loop(@NonNull final Manager manager) {
             super();
 
             mManager = manager;
         }
 
         @Override
-        public final void run() {
+        public void run() {
             Looper.prepare();
 
             final Looper current = Looper.myLooper();
@@ -96,7 +96,7 @@ public class Dispatcher {
             }
         }
 
-        public final void stop() {
+        public void stop() {
             final Looper current = mLooper.getAndSet(null);
             if (current != null) {
                 current.quit();

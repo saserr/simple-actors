@@ -271,14 +271,14 @@ public class System implements Actor.Repository {
     }
 
     @ThreadSafe
-    private static class Context implements android.actor.Context {
+    private static final class Context implements android.actor.Context {
 
         @NonNull
         private final Actor.Name mName;
         @NonNull
         private final System mSystem;
 
-        Context(@NonNull final Actor.Name name, @NonNull final System system) {
+        private Context(@NonNull final Actor.Name name, @NonNull final System system) {
             super();
 
             mName = name;
@@ -287,20 +287,20 @@ public class System implements Actor.Repository {
 
         @NonNull
         @Override
-        public final Actor.Name getName() {
+        public Actor.Name getName() {
             return mName;
         }
 
         @NonNull
         @Override
-        public final System getSystem() {
+        public System getSystem() {
             return mSystem;
         }
 
         @NonNull
         @Override
-        public final <M> Reference<M> register(@NonNls @NonNull final String name,
-                                               @NonNull final Actor<M> actor) {
+        public <M> Reference<M> register(@NonNls @NonNull final String name,
+                                         @NonNull final Actor<M> actor) {
             return mSystem.register(new Actor.Name(mName, name), actor);
         }
     }

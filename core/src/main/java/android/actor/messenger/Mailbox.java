@@ -107,7 +107,7 @@ public class Mailbox<M> {
         boolean send(@NonNull final Messenger<M> messenger);
 
         @ThreadSafe
-        class System<M> implements Message<M> {
+        final class System<M> implements Message<M> {
 
             private final int mMessage;
 
@@ -118,18 +118,18 @@ public class Mailbox<M> {
             }
 
             @Override
-            public final boolean send(@NonNull final Messenger.Callback<M> callback) {
+            public boolean send(@NonNull final Messenger.Callback<M> callback) {
                 return callback.onMessage(mMessage);
             }
 
             @Override
-            public final boolean send(@NonNull final Messenger<M> messenger) {
+            public boolean send(@NonNull final Messenger<M> messenger) {
                 return messenger.send(mMessage);
             }
         }
 
         @ThreadSafe
-        class User<M> implements Message<M> {
+        final class User<M> implements Message<M> {
 
             @NonNull
             private final M mMessage;
@@ -143,12 +143,12 @@ public class Mailbox<M> {
             }
 
             @Override
-            public final boolean send(@NonNull final Messenger.Callback<M> callback) {
+            public boolean send(@NonNull final Messenger.Callback<M> callback) {
                 return (mAtTime <= uptimeMillis()) && callback.onMessage(mMessage);
             }
 
             @Override
-            public final boolean send(@NonNull final Messenger<M> messenger) {
+            public boolean send(@NonNull final Messenger<M> messenger) {
                 final long now = uptimeMillis();
                 return (now < mAtTime) ?
                         messenger.send(mMessage, mAtTime - now) :

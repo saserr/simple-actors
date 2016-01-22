@@ -98,19 +98,20 @@ public class LooperMessenger<M> implements Messenger<M> {
     }
 
     @ThreadSafe
-    private static class HandlerCallback<M> implements Handler.Callback {
+    private static final class HandlerCallback<M> implements Handler.Callback {
 
         @NonNull
         private final Messenger.Callback<M> mCallback;
 
-        HandlerCallback(@NonNull final Messenger.Callback<M> callback) {
+        private HandlerCallback(@NonNull final Messenger.Callback<M> callback) {
             super();
+
             mCallback = callback;
         }
 
         @Override
         @SuppressWarnings("unchecked")
-        public final boolean handleMessage(@NonNull final Message message) {
+        public boolean handleMessage(@NonNull final Message message) {
             final boolean processed;
 
             switch (message.what) {
