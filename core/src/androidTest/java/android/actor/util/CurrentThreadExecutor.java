@@ -18,7 +18,9 @@ package android.actor.util;
 
 import android.actor.Executor;
 import android.actor.executor.Executable;
-import android.actor.executor.Manager;
+import android.actor.executor.SimpleExecutor;
+import android.actor.messenger.Messengers;
+import android.os.Looper;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
@@ -31,13 +33,17 @@ public class CurrentThreadExecutor implements Executor {
 
     private final Lock mLock = new ReentrantLock();
 
-    private Manager mManager = new Manager();
+    private SimpleExecutor mExecutor = new SimpleExecutor();
     private boolean mStopped = false;
 
     public CurrentThreadExecutor() {
         super();
 
-        mManager.start(myLooper());
+        final Looper looper = myLooper();
+        if (looper == null) {
+            throw new IllegalStateException("No looper associated with this thread");
+        }
+        mExecutor.start(Messengers.from(looper));
     }
 
     @Nullable
@@ -51,7 +57,7 @@ public class CurrentThreadExecutor implements Executor {
                 throw new UnsupportedOperationException("Executor is stopped!");
             }
 
-            submission = mManager.submit(executable);
+            submission = mExecutor.submit(executable);
         } finally {
             mLock.unlock();
         }
@@ -65,8 +71,8 @@ public class CurrentThreadExecutor implements Executor {
         mLock.lock();
         try {
             if (!mStopped) {
-                mManager.stop();
-                mManager = null;
+                mExecutor.stop();
+                mExecutor = null;
                 mStopped = true;
             }
         } finally {

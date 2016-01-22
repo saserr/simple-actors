@@ -18,8 +18,6 @@ package android.actor.executor;
 
 import android.actor.Executor;
 import android.actor.Messenger;
-import android.actor.messenger.Messengers;
-import android.os.Looper;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.util.Log;
@@ -38,9 +36,12 @@ import static android.util.Log.DEBUG;
 import static android.util.Log.INFO;
 
 @ThreadSafe
-public class Manager {
+public class SimpleExecutor implements Executor {
 
-    private static final String TAG = Manager.class.getSimpleName();
+    private static final String TAG = SimpleExecutor.class.getSimpleName();
+
+    @NonNls
+    public static final String EXECUTOR_STOPPED = "Executor is stopped";
 
     @GuardedBy("mLock")
     private final Collection<Executable> mExecutables = new HashSet<>();
@@ -49,8 +50,10 @@ public class Manager {
     @Nullable
     @GuardedBy("mLock")
     private Messenger.Factory mFactory;
+    @GuardedBy("mLock")
+    private boolean mStopped = false;
 
-    public Manager() {
+    public SimpleExecutor() {
         super();
     }
 
@@ -80,12 +83,16 @@ public class Manager {
         return result;
     }
 
-    public final boolean start(@NonNull final Looper looper) {
+    public final boolean start(@NonNull final Messenger.Factory factory) {
         boolean success = true;
 
         mLock.lock();
         try {
-            mFactory = Messengers.from(looper);
+            if (mStopped) {
+                throw new UnsupportedOperationException(EXECUTOR_STOPPED);
+            }
+
+            mFactory = factory;
             for (final Executable executable : mExecutables) {
                 if (!executable.attach(mFactory)) {
                     Log.w(TAG, executable + " failed to attach"); //NON-NLS
@@ -99,16 +106,20 @@ public class Manager {
         return success;
     }
 
+    @Override
     public final void stop() {
         mLock.lock();
         try {
-            if (mFactory != null) {
-                mFactory = null;
-                for (final Executable executable : mExecutables) {
-                    if (!executable.detach()) {
-                        Log.w(TAG, executable + " failed to detach"); //NON-NLS
+            if (!mStopped) {
+                if (mFactory != null) {
+                    mFactory = null;
+                    for (final Executable executable : mExecutables) {
+                        if (!executable.detach()) {
+                            Log.w(TAG, executable + " failed to detach"); //NON-NLS
+                        }
                     }
                 }
+                mStopped = true;
             }
         } finally {
             mLock.unlock();
@@ -116,11 +127,16 @@ public class Manager {
     }
 
     @Nullable
+    @Override
     public final Executor.Submission submit(@NonNls @NonNull final Executable executable) {
         @org.jetbrains.annotations.Nullable final Executor.Submission submission;
 
         mLock.lock();
         try {
+            if (mStopped) {
+                throw new UnsupportedOperationException(EXECUTOR_STOPPED);
+            }
+
             if (mExecutables.add(executable)) {
                 if ((mFactory == null) || executable.attach(mFactory)) {
                     if (Log.isLoggable(TAG, DEBUG)) {

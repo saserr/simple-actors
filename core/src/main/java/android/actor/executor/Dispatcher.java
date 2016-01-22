@@ -17,6 +17,7 @@
 package android.actor.executor;
 
 import android.actor.Executor;
+import android.actor.messenger.Messengers;
 import android.os.Looper;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -33,13 +34,13 @@ public class Dispatcher {
     @NonNull
     private final Loop mLoop;
     @NonNull
-    private final Manager mManager;
+    private final SimpleExecutor mExecutor;
 
     public Dispatcher() {
         super();
 
-        mManager = new Manager();
-        mLoop = new Loop(mManager);
+        mExecutor = new SimpleExecutor();
+        mLoop = new Loop(mExecutor);
     }
 
     public final void start() {
@@ -51,30 +52,30 @@ public class Dispatcher {
     }
 
     public final boolean isEmpty() {
-        return mManager.isEmpty();
+        return mExecutor.isEmpty();
     }
 
     public final int size() {
-        return mManager.size();
+        return mExecutor.size();
     }
 
     @Nullable
     public final Executor.Submission submit(@NonNls @NonNull final Executable executable) {
-        return mManager.submit(executable);
+        return mExecutor.submit(executable);
     }
 
     @ThreadSafe
     private static final class Loop implements Runnable {
 
         @NonNull
-        private final Manager mManager;
+        private final SimpleExecutor mExecutor;
 
         private final AtomicReference<Looper> mLooper = new AtomicReference<>();
 
-        private Loop(@NonNull final Manager manager) {
+        private Loop(@NonNull final SimpleExecutor executor) {
             super();
 
-            mManager = manager;
+            mExecutor = executor;
         }
 
         @Override
@@ -82,13 +83,15 @@ public class Dispatcher {
             Looper.prepare();
 
             final Looper current = Looper.myLooper();
-            if (mLooper.compareAndSet(null, current)) {
+            if (current == null) {
+                throw new IllegalStateException("No looper associated with this thread");
+            }
+
+            if (mLooper.compareAndSet(null, current) && mExecutor.start(Messengers.from(current))) {
                 try {
-                    if (mManager.start(current)) {
-                        Looper.loop();
-                    }
+                    Looper.loop();
                 } finally {
-                    mManager.stop();
+                    mExecutor.stop();
                     mLooper.set(null);
                 }
             } else {

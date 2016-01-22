@@ -37,8 +37,6 @@ import static java.lang.annotation.RetentionPolicy.SOURCE;
 @ThreadSafe
 public class System implements Actor.Repository {
 
-    public static final System OnMainThread = new System(Executors.mainThread());
-
     private static final String TAG = System.class.getSimpleName();
 
     @NonNls
@@ -260,6 +258,11 @@ public class System implements Actor.Repository {
         } finally {
             mLock.unlock();
         }
+    }
+
+    @NonNull
+    public static System onMainThread() {
+        return new System(Executors.mainThread());
     }
 
     @Retention(SOURCE)
