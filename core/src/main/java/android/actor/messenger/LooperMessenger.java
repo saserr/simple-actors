@@ -23,11 +23,14 @@ import android.os.Message;
 import android.support.annotation.IntDef;
 import android.support.annotation.NonNull;
 
+import net.jcip.annotations.ThreadSafe;
+
 import java.lang.annotation.Retention;
 
 import static java.lang.Thread.currentThread;
 import static java.lang.annotation.RetentionPolicy.SOURCE;
 
+@ThreadSafe
 public class LooperMessenger<M> implements Messenger<M> {
 
     @NonNull
@@ -94,6 +97,7 @@ public class LooperMessenger<M> implements Messenger<M> {
         int USER = 2;
     }
 
+    @ThreadSafe
     private static class HandlerCallback<M> implements Handler.Callback {
 
         @NonNull

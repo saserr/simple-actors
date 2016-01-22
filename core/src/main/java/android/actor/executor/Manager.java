@@ -24,6 +24,9 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.util.Log;
 
+import net.jcip.annotations.GuardedBy;
+import net.jcip.annotations.ThreadSafe;
+
 import org.jetbrains.annotations.NonNls;
 
 import java.util.Collection;
@@ -31,14 +34,17 @@ import java.util.HashSet;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+@ThreadSafe
 public class Manager {
 
     private static final String TAG = Manager.class.getSimpleName();
 
-    private final Lock mLock = new ReentrantLock();
+    @GuardedBy("mLock")
     private final Collection<Executable> mExecutables = new HashSet<>();
+    private final Lock mLock = new ReentrantLock();
 
     @Nullable
+    @GuardedBy("mLock")
     private Messenger.Factory mFactory;
 
     public Manager() {

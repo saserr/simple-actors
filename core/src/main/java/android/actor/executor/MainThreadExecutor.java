@@ -21,18 +21,24 @@ import android.os.Looper;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
+import net.jcip.annotations.GuardedBy;
+import net.jcip.annotations.ThreadSafe;
+
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 import static android.os.Looper.getMainLooper;
 
+@ThreadSafe
 public class MainThreadExecutor implements Executor {
 
     private static final Looper MAIN_THREAD = getMainLooper();
 
     private final Lock mLock = new ReentrantLock();
 
+    @GuardedBy("mLock")
     private Manager mManager = new Manager();
+    @GuardedBy("mLock")
     private boolean mStopped = false;
 
     public MainThreadExecutor() {

@@ -21,10 +21,13 @@ import android.os.Looper;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
+import net.jcip.annotations.ThreadSafe;
+
 import org.jetbrains.annotations.NonNls;
 
 import java.util.concurrent.atomic.AtomicReference;
 
+@ThreadSafe
 public class Dispatcher {
 
     @NonNull
@@ -60,6 +63,7 @@ public class Dispatcher {
         return mManager.submit(executable);
     }
 
+    @ThreadSafe
     private static class Loop implements Runnable {
 
         @NonNull

@@ -20,11 +20,15 @@ import android.actor.Executor;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
+import net.jcip.annotations.GuardedBy;
+import net.jcip.annotations.ThreadSafe;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+@ThreadSafe
 public class FixedSizeExecutor implements Executor {
 
     @NonNull
@@ -32,6 +36,7 @@ public class FixedSizeExecutor implements Executor {
 
     private final Lock mLock = new ReentrantLock();
 
+    @GuardedBy("mLock")
     private boolean mStopped = false;
 
     public FixedSizeExecutor(final int size) {

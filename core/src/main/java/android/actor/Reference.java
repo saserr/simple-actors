@@ -23,6 +23,10 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.util.Log;
 
+import net.jcip.annotations.GuardedBy;
+import net.jcip.annotations.NotThreadSafe;
+import net.jcip.annotations.ThreadSafe;
+
 import org.jetbrains.annotations.NonNls;
 
 import java.lang.annotation.Retention;
@@ -34,6 +38,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import static java.lang.annotation.RetentionPolicy.SOURCE;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
+@ThreadSafe
 public class Reference<M> implements Executable {
 
     private static final String TAG = Reference.class.getSimpleName();
@@ -51,10 +56,15 @@ public class Reference<M> implements Executable {
     private final String mActorStopped;
 
     private final Lock mLock = new ReentrantLock();
+
     @Nullable
+    @GuardedBy("mLock")
     private BufferedMessenger<M> mMessenger;
     @Nullable
+    @GuardedBy("mLock")
     private Task<M> mTask;
+
+    @GuardedBy("mLock")
     private boolean mStopped = false;
 
     public Reference(@NonNull final Context context,
@@ -292,6 +302,7 @@ public class Reference<M> implements Executable {
         int STOP = 2;
     }
 
+    @NotThreadSafe
     private static class Task<M> implements Messenger.Callback<M> {
 
         @NonNull

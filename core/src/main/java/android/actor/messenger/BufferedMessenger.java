@@ -20,6 +20,9 @@ import android.actor.Messenger;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
+import net.jcip.annotations.NotThreadSafe;
+
+@NotThreadSafe
 public class BufferedMessenger<M> implements Messenger<M> {
 
     @NonNull

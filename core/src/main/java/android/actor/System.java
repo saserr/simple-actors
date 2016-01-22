@@ -20,6 +20,9 @@ import android.support.annotation.IntDef;
 import android.support.annotation.NonNull;
 import android.util.Log;
 
+import net.jcip.annotations.GuardedBy;
+import net.jcip.annotations.ThreadSafe;
+
 import org.jetbrains.annotations.NonNls;
 
 import java.lang.annotation.Retention;
@@ -30,6 +33,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import static java.lang.annotation.RetentionPolicy.SOURCE;
 
+@ThreadSafe
 public class System implements Actor.Repository {
 
     public static final System OnMainThread = new System(Executors.mainThread());
@@ -44,8 +48,9 @@ public class System implements Actor.Repository {
     @NonNull
     private final Executor mExecutor;
 
-    private final Lock mLock = new ReentrantLock();
+    @GuardedBy("mLock")
     private final Map<Actor.Name, Reference<?>> mReferences = new HashMap<>();
+    private final Lock mLock = new ReentrantLock();
 
     private final Reference.Callback mCallback = new Reference.Callback() {
         @Override
@@ -55,6 +60,7 @@ public class System implements Actor.Repository {
     };
 
     @State
+    @GuardedBy("mLock")
     private int mState = State.STARTED;
 
     public System(@NonNull final Executor executor) {
@@ -259,6 +265,7 @@ public class System implements Actor.Repository {
         int STOPPED = 3;
     }
 
+    @ThreadSafe
     private static class Context implements android.actor.Context {
 
         @NonNull

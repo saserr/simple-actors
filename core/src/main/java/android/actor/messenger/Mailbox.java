@@ -19,33 +19,42 @@ package android.actor.messenger;
 import android.actor.Messenger;
 import android.support.annotation.NonNull;
 
+import net.jcip.annotations.GuardedBy;
+import net.jcip.annotations.ThreadSafe;
+
 import java.util.LinkedList;
 import java.util.Queue;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static android.os.SystemClock.uptimeMillis;
 
+@ThreadSafe
 public class Mailbox<M> {
 
+    @GuardedBy("mLock")
     private final Queue<Message<M>> mMessages = new LinkedList<>();
-    private final Object mLock = new Object();
-
-    public Mailbox() {
-        super();
-    }
+    private final Lock mLock = new ReentrantLock();
 
     public final boolean isEmpty() {
         final boolean result;
 
-        synchronized (mLock) {
+        mLock.lock();
+        try {
             result = mMessages.isEmpty();
+        } finally {
+            mLock.unlock();
         }
 
         return result;
     }
 
     public final void clear() {
-        synchronized (mLock) {
+        mLock.lock();
+        try {
             mMessages.clear();
+        } finally {
+            mLock.unlock();
         }
     }
 
@@ -53,8 +62,11 @@ public class Mailbox<M> {
         final boolean result;
 
         final Message<M> msg = new Message.System<>(message);
-        synchronized (mLock) {
+        mLock.lock();
+        try {
             result = mMessages.offer(msg);
+        } finally {
+            mLock.unlock();
         }
 
         return result;
@@ -64,8 +76,11 @@ public class Mailbox<M> {
         final boolean result;
 
         final Message<M> msg = new Message.User<>(message, delay);
-        synchronized (mLock) {
+        mLock.lock();
+        try {
             result = mMessages.offer(msg);
+        } finally {
+            mLock.unlock();
         }
 
         return result;
@@ -75,8 +90,11 @@ public class Mailbox<M> {
     public final Message<M> take() {
         final Message<M> result;
 
-        synchronized (mLock) {
+        mLock.lock();
+        try {
             result = mMessages.poll();
+        } finally {
+            mLock.unlock();
         }
 
         return result;
@@ -88,6 +106,7 @@ public class Mailbox<M> {
 
         boolean send(@NonNull final Messenger<M> messenger);
 
+        @ThreadSafe
         class System<M> implements Message<M> {
 
             private final int mMessage;
@@ -109,6 +128,7 @@ public class Mailbox<M> {
             }
         }
 
+        @ThreadSafe
         class User<M> implements Message<M> {
 
             @NonNull
