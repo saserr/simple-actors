@@ -247,11 +247,11 @@ public class Reference<M> implements Executable {
 
         mLock.lock();
         try {
-            if (mStopped || (mMessenger == null)) {
+            if (mStopped) {
                 throw new UnsupportedOperationException(mActorStopped);
             }
 
-            success = mMessenger.send(ControlMessage.PAUSE);
+            success = (mMessenger == null) || mMessenger.send(ControlMessage.PAUSE);
         } finally {
             mLock.unlock();
         }

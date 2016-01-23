@@ -23,6 +23,7 @@ import android.util.Pair;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static android.actor.SystemMatchers.paused;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
@@ -87,6 +88,20 @@ public class ReferenceTest extends TestCase {
         assertThat("actor is stopped", reference.isStopped(), is(false));
 
         assertThat("number of actor post start invocations", actor.getPostStarts().size(), is(1));
+        assertThat("actor pre stops", actor.getPreStops(), is(0));
+    }
+
+    public final void testPauseBeforeStart() {
+        assertThat("system pause", mSystem.pause(), is(true));
+        assertThat("system", mSystem, is(paused()));
+
+        final MockActor<Integer> actor = new MockActor<>();
+        final Reference<Integer> reference = mSystem.register(a(RandomName), actor);
+
+        assertThat("actor pause", reference.pause(), is(true));
+        assertThat("actor is stopped", reference.isStopped(), is(false));
+
+        assertThat("number of actor post start invocations", actor.getPostStarts().size(), is(0));
         assertThat("actor pre stops", actor.getPreStops(), is(0));
     }
 
