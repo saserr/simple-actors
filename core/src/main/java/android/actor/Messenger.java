@@ -16,7 +16,12 @@
 
 package android.actor;
 
+import android.support.annotation.IntDef;
 import android.support.annotation.NonNull;
+
+import java.lang.annotation.Retention;
+
+import static java.lang.annotation.RetentionPolicy.SOURCE;
 
 public interface Messenger<M> {
 
@@ -26,11 +31,20 @@ public interface Messenger<M> {
 
     boolean stop(final boolean immediately);
 
+    @Retention(SOURCE)
+    @IntDef({Delivery.SUCCESS, Delivery.FAILURE_CAN_RETRY, Delivery.FAILURE_NO_RETRY})
+    @interface Delivery {
+        int SUCCESS = 1;
+        int FAILURE_CAN_RETRY = 2;
+        int FAILURE_NO_RETRY = 3;
+    }
+
     interface Callback<M> {
 
         boolean onMessage(final int message);
 
-        boolean onMessage(@NonNull final M message);
+        @Delivery
+        int onMessage(@NonNull final M message);
     }
 
     interface Factory {

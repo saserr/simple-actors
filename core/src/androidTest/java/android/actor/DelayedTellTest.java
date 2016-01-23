@@ -94,6 +94,16 @@ public class DelayedTellTest extends TestCase {
         assertThat("actor received message time ", onMessages.get(0), is(after(earliestDelivery)));
     }
 
+    public final void testTellDuringPauseIsNotReceived() {
+        final android.actor.MockActor<Integer> actor = new android.actor.MockActor<>();
+        final Reference<Integer> reference = mSystem.register(a(RandomName), actor);
+
+        assertThat("actor pause", reference.pause(), is(true));
+        final int message = isA(RandomMessage);
+        assertThat("actor tell", reference.tell(message, a(RandomDelay), MILLISECONDS), is(true));
+        assertThat("actor received messages", actor.getMessages(), is(empty()));
+    }
+
     public final void testTellDuringShortPauseIsReceivedAfterStart() throws InterruptedException {
         final MockActor<Integer> actor = new MockActor<>();
         final Reference<Integer> reference = mSystem.register(a(RandomName), actor);

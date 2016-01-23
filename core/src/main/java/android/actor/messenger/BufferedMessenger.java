@@ -43,12 +43,15 @@ public class BufferedMessenger<M> implements Messenger<M> {
     }
 
     public final boolean attach(@NonNull final Factory factory) {
-        final boolean success = (mMessenger == null) || mMessenger.stop(false);
+        boolean success = (mMessenger == null) || mMessenger.stop(false);
 
         if (success) {
             mMessenger = factory.create(mCallback);
-            while (!mMailbox.isEmpty()) {
-                mMailbox.take().send(mMessenger);
+            while (success && !mMailbox.isEmpty()) {
+                if (!mMailbox.take().send(mMessenger)) {
+                    success = false;
+                    mMessenger = null;
+                }
             }
         }
 
@@ -62,7 +65,7 @@ public class BufferedMessenger<M> implements Messenger<M> {
     @Override
     public final boolean send(final int message) {
         return (mMessenger == null) ?
-                ((mMailbox.isEmpty() && mCallback.onMessage(message)) || mMailbox.put(message)) :
+                (mMailbox.isEmpty() ? mCallback.onMessage(message) : mMailbox.put(message)) :
                 mMessenger.send(message);
     }
 
@@ -78,6 +81,7 @@ public class BufferedMessenger<M> implements Messenger<M> {
         final boolean success = (mMessenger == null) || mMessenger.stop(immediately);
 
         if (success) {
+            mMessenger = null;
             if (immediately) {
                 mMailbox.clear();
             } else {

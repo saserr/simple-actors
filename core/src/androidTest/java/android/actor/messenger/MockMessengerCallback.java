@@ -50,8 +50,8 @@ public class MockMessengerCallback<M> implements Messenger.Callback<M> {
     }
 
     @Override
-    public final boolean onMessage(@NonNull final M message) {
+    public final int onMessage(@NonNull final M message) {
         mUserMessages.add(message);
-        return true;
+        return Messenger.Delivery.SUCCESS;
     }
 }

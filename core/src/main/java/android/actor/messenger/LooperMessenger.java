@@ -34,19 +34,19 @@ import static java.lang.annotation.RetentionPolicy.SOURCE;
 public class LooperMessenger<M> implements Messenger<M> {
 
     @NonNull
+    private final Looper mLooper;
+    @NonNull
     private final Messenger.Callback<M> mCallback;
     @NonNull
     private final Handler mHandler;
-    @NonNull
-    private final Thread mThread;
 
     public LooperMessenger(@NonNull final Looper looper,
                            @NonNull final Messenger.Callback<M> callback) {
         super();
 
+        mLooper = looper;
         mCallback = callback;
         mHandler = new Handler(looper, new HandlerCallback<>(callback));
-        mThread = looper.getThread();
     }
 
     public final boolean hasUndeliveredMessages() {
@@ -54,13 +54,14 @@ public class LooperMessenger<M> implements Messenger<M> {
                 mHandler.hasMessages(MessageType.USER);
     }
 
-    public final boolean isCurrentThread() {
-        return mThread.equals(currentThread());
+    public final boolean isOnCurrentThread() {
+        return mLooper.getThread() == currentThread();
     }
 
     @Override
     public final boolean send(final int message) {
-        return (!hasUndeliveredMessages() && isCurrentThread() && mCallback.onMessage(message)) ||
+        return (isOnCurrentThread() && !hasUndeliveredMessages()) ?
+                mCallback.onMessage(message) :
                 mHandler.sendMessage(mHandler.obtainMessage(MessageType.CONTROL, message, 0));
     }
 
@@ -68,13 +69,18 @@ public class LooperMessenger<M> implements Messenger<M> {
     public final boolean send(@NonNull final M message, final long delay) {
         final boolean success;
 
-        if ((delay <= 0) && !hasUndeliveredMessages() && isCurrentThread() && mCallback.onMessage(message)) {
-            success = true;
-        } else {
+        @Messenger.Delivery final int delivered =
+                ((delay <= 0) && isOnCurrentThread() && !hasUndeliveredMessages()) ?
+                        mCallback.onMessage(message) :
+                        Delivery.FAILURE_CAN_RETRY;
+
+        if (delivered == Delivery.FAILURE_CAN_RETRY) {
             final Message msg = mHandler.obtainMessage(MessageType.USER, message);
             success = (delay > 0) ?
                     mHandler.sendMessageDelayed(msg, delay) :
                     mHandler.sendMessage(msg);
+        } else {
+            success = delivered == Delivery.SUCCESS;
         }
 
         return success;
@@ -119,7 +125,7 @@ public class LooperMessenger<M> implements Messenger<M> {
                     processed = mCallback.onMessage(message.arg1);
                     break;
                 case MessageType.USER:
-                    processed = mCallback.onMessage((M) message.obj);
+                    processed = mCallback.onMessage((M) message.obj) == Messenger.Delivery.SUCCESS;
                     break;
                 default:
                     processed = false;

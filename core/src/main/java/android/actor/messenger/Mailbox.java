@@ -144,7 +144,8 @@ public class Mailbox<M> {
 
             @Override
             public boolean send(@NonNull final Messenger.Callback<M> callback) {
-                return (mAtTime <= uptimeMillis()) && callback.onMessage(mMessage);
+                return (mAtTime <= uptimeMillis()) &&
+                        (callback.onMessage(mMessage) == Messenger.Delivery.SUCCESS);
             }
 
             @Override

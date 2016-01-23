@@ -365,25 +365,32 @@ public class Reference<M> implements Executable {
             return processed;
         }
 
+        @Messenger.Delivery
         @Override
-        public boolean onMessage(@NonNls @NonNull final M message) {
-            final boolean success = mDirectCall.tryAcquire();
+        public int onMessage(@NonNls @NonNull final M message) {
+            int result = Messenger.Delivery.SUCCESS;
 
-            if (success) {
+            if (mDirectCall.tryAcquire()) {
                 try {
                     mActor.onMessage(message);
                 } catch (final Throwable error) {
-                    Log.e(TAG, mReference + " failed to receive message " + message, error); // NON-NLS
+                    Log.e(TAG, mReference + " failed to receive message " + message + "! Stopping", error); // NON-NLS
+                    if (!mReference.stop(true)) {
+                        Log.e(TAG, mReference + " couldn't be stopped after the failure! Ignoring the failure"); // NON-NLS
+                    }
+                    result = Messenger.Delivery.FAILURE_NO_RETRY;
                 } finally {
                     mDirectCall.release();
                 }
+            } else {
+                result = Messenger.Delivery.FAILURE_CAN_RETRY;
             }
 
-            if (success && Log.isLoggable(TAG, DEBUG)) {
+            if ((result == Messenger.Delivery.SUCCESS) && Log.isLoggable(TAG, DEBUG)) {
                 Log.d(TAG, mReference + " handled user message " + message); //NON-NLS
             }
 
-            return success;
+            return result;
         }
     }
 }
