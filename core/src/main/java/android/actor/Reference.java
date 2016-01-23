@@ -18,6 +18,7 @@ package android.actor;
 
 import android.actor.executor.Executable;
 import android.actor.messenger.BufferedMessenger;
+import android.actor.messenger.Mailbox;
 import android.support.annotation.IntDef;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -58,6 +59,7 @@ public class Reference<M> implements Executable {
     private final String mActorStopped;
 
     private final Lock mLock = new ReentrantLock();
+    private final Mailbox<M> mMailbox = new Mailbox<>();
 
     @Nullable
     @GuardedBy("mLock")
@@ -110,11 +112,14 @@ public class Reference<M> implements Executable {
 
         mLock.lock();
         try {
-            if (mStopped || (mMessenger == null)) {
+            if (mStopped) {
                 throw new UnsupportedOperationException(mActorStopped);
             }
 
-            success = mMessenger.send(message, unit.toMillis(delay));
+            final long delayInMillis = unit.toMillis(delay);
+            success = (mMessenger == null) ?
+                    mMailbox.put(message, delayInMillis) :
+                    mMessenger.send(message, delayInMillis);
         } finally {
             mLock.unlock();
         }
@@ -222,15 +227,32 @@ public class Reference<M> implements Executable {
 
         mLock.lock();
         try {
-            if (mTask == null) {
-                mTask = new Task<>(this, mActor);
-                mActor.postStart(mContext, this);
-                mMessenger = new BufferedMessenger<>(mTask);
+            if (mStopped) {
+                throw new UnsupportedOperationException(mActorStopped);
             }
 
-            success = mTask.start(executor);
-        } catch (final Throwable error) {
-            Log.e(TAG, this + " failed to start ", error); // NON-NLS
+            if (mTask == null) {
+                try {
+                    mActor.postStart(mContext, this);
+                    mTask = new Task<>(this, mActor);
+                    mMessenger = new BufferedMessenger<>(mTask);
+                    success = true;
+                    while (success && !mMailbox.isEmpty()) {
+                        success = mMailbox.take().send(mMessenger);
+                    }
+                } catch (final Throwable error) {
+                    Log.e(TAG, this + " failed to start! Stopping", error); // NON-NLS
+                    success = false;
+                }
+            } else {
+                success = true;
+            }
+
+            if (success) {
+                success = mTask.start(executor);
+            } else {
+                stop(true);
+            }
         } finally {
             mLock.unlock();
         }

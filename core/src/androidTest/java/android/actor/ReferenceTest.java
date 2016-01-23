@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static android.actor.SystemMatchers.paused;
+import static android.actor.SystemMatchers.started;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
@@ -74,6 +75,25 @@ public class ReferenceTest extends TestCase {
 
         final int message = isA(RandomMessage);
         assertThat("actor tell", reference.tell(message), is(true));
+
+        final List<Integer> messages = actor.getMessages();
+        assertThat("number of the actor received messages", messages.size(), is(1));
+        assertThat("actor received message", messages.get(0), is(message));
+    }
+
+    public final void testTellBeforeStart() {
+        assertThat("system pause", mSystem.pause(), is(true));
+        assertThat("system", mSystem, is(paused()));
+
+        final MockActor<Integer> actor = new MockActor<>();
+        final Reference<Integer> reference = mSystem.register(a(RandomName), actor);
+
+        final int message = isA(RandomMessage);
+        assertThat("actor tell", reference.tell(message), is(true));
+        assertThat("actor received messages", actor.getMessages(), is(empty()));
+
+        assertThat("system start", mSystem.start(), is(true));
+        assertThat("system", mSystem, is(started()));
 
         final List<Integer> messages = actor.getMessages();
         assertThat("number of the actor received messages", messages.size(), is(1));
