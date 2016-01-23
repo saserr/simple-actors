@@ -68,8 +68,9 @@ public class Reference<M> implements Executable {
     @GuardedBy("mLock")
     private Task<M> mTask;
 
+    @State
     @GuardedBy("mLock")
-    private boolean mStopped = false;
+    private int mState = State.STARTED;
 
     public Reference(@NonNull final Context context,
                      @NonNull final Actor<M> actor,
@@ -93,7 +94,7 @@ public class Reference<M> implements Executable {
 
         mLock.lock();
         try {
-            result = mStopped;
+            result = mState == State.STOPPED;
         } finally {
             mLock.unlock();
         }
@@ -112,7 +113,7 @@ public class Reference<M> implements Executable {
 
         mLock.lock();
         try {
-            if (mStopped) {
+            if (mState != State.STARTED) {
                 throw new UnsupportedOperationException(mActorStopped);
             }
 
@@ -132,19 +133,25 @@ public class Reference<M> implements Executable {
 
         mLock.lock();
         try {
-            if (mStopped) {
-                success = true;
-            } else {
+            if (mState == State.STARTED) {
                 if (mMessenger == null) {
-                    throw new UnsupportedOperationException(mActorStopped);
+                    success = stop(true);
+                } else {
+                    // TODO don't use isAttached(); Messenger should check that somehow
+                    if (mMessenger.isAttached()) {
+                        success = mMessenger.send(ControlMessage.STOP);
+                    } else {
+                        final boolean stopped = mMessenger.stop(false);
+                        success = stop(true) && stopped;
+                    }
                 }
 
-                success = mMessenger.isAttached() ?
-                        mMessenger.send(ControlMessage.STOP) :
-                        mMessenger.stop(false);
+                if (success && (mState == State.STARTED)) {
+                    mState = State.STOPPING;
+                }
+            } else {
+                success = true;
             }
-
-            mStopped = true;
         } finally {
             mLock.unlock();
         }
@@ -158,7 +165,7 @@ public class Reference<M> implements Executable {
 
         mLock.lock();
         try {
-            if (mStopped || (mMessenger == null)) {
+            if ((mState != State.STARTED) || (mMessenger == null)) {
                 throw new UnsupportedOperationException(mActorStopped);
             }
 
@@ -180,7 +187,14 @@ public class Reference<M> implements Executable {
 
         mLock.lock();
         try {
-            if (mStopped) {
+            if (mState == State.STARTED) {
+                if (mMessenger == null) {
+                    throw new UnsupportedOperationException(mActorStopped);
+                }
+
+                mMessenger.detach();
+                success = true;
+            } else {
                 if (mMessenger == null) {
                     success = true;
                 } else {
@@ -190,13 +204,6 @@ public class Reference<M> implements Executable {
                     success = mMessenger.stop(true);
                     mMessenger = null;
                 }
-            } else {
-                if (mMessenger == null) {
-                    throw new UnsupportedOperationException(mActorStopped);
-                }
-
-                mMessenger.detach();
-                success = true;
             }
         } finally {
             mLock.unlock();
@@ -227,7 +234,7 @@ public class Reference<M> implements Executable {
 
         mLock.lock();
         try {
-            if (mStopped) {
+            if (mState != State.STARTED) {
                 throw new UnsupportedOperationException(mActorStopped);
             }
 
@@ -269,7 +276,7 @@ public class Reference<M> implements Executable {
 
         mLock.lock();
         try {
-            if (mStopped) {
+            if (mState != State.STARTED) {
                 throw new UnsupportedOperationException(mActorStopped);
             }
 
@@ -289,22 +296,28 @@ public class Reference<M> implements Executable {
         boolean success = false;
 
         if (immediately) {
-            mCallback.onStop(mName);
-
             mLock.lock();
             try {
-                mStopped = true;
-
                 if (mTask == null) {
                     success = true;
                 } else {
-                    mActor.preStop();
                     success = mTask.stop();
+                    if (success) {
+                        mActor.preStop();
+                    }
+                }
+
+                if (success) {
+                    mState = State.STOPPED;
                 }
             } catch (final Throwable error) {
-                Log.e(TAG, this + " failed to stop ", error); // NON-NLS
+                Log.w(TAG, this + " failed during stop! Ignoring", error); // NON-NLS
+                mState = State.STOPPED;
             } finally {
                 mLock.unlock();
+                if (success) {
+                    mCallback.onStop(mName);
+                }
             }
         } else {
             success = stop();
@@ -326,6 +339,14 @@ public class Reference<M> implements Executable {
     private @interface ControlMessage {
         int PAUSE = 1;
         int STOP = 2;
+    }
+
+    @Retention(SOURCE)
+    @IntDef({State.STARTED, State.STOPPING, State.STOPPED})
+    private @interface State {
+        int STARTED = 1;
+        int STOPPING = 2;
+        int STOPPED = 3;
     }
 
     @NotThreadSafe
