@@ -18,84 +18,87 @@ package android.actor.messenger;
 
 import android.actor.Messenger;
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 
-import net.jcip.annotations.GuardedBy;
+import net.jcip.annotations.NotThreadSafe;
 import net.jcip.annotations.ThreadSafe;
 
 import java.util.LinkedList;
 import java.util.Queue;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
-@ThreadSafe
-public class Mailbox<M> {
-
-    @GuardedBy("mLock")
-    private final Queue<Message<M>> mMessages = new LinkedList<>();
-    private final Lock mLock = new ReentrantLock();
-
-    public final boolean isEmpty() {
-        final boolean result;
-
-        mLock.lock();
-        try {
-            result = mMessages.isEmpty();
-        } finally {
-            mLock.unlock();
-        }
-
-        return result;
-    }
-
-    public final void clear() {
-        mLock.lock();
-        try {
-            mMessages.clear();
-        } finally {
-            mLock.unlock();
-        }
-    }
-
-    public final boolean put(final int message) {
-        final boolean result;
-
-        final Message<M> msg = new Message.Control<>(message);
-        mLock.lock();
-        try {
-            result = mMessages.offer(msg);
-        } finally {
-            mLock.unlock();
-        }
-
-        return result;
-    }
-
-    public final boolean put(@NonNull final M message) {
-        final boolean result;
-
-        final Message<M> msg = new Message.User<>(message);
-        mLock.lock();
-        try {
-            result = mMessages.offer(msg);
-        } finally {
-            mLock.unlock();
-        }
-
-        return result;
-    }
+@NotThreadSafe
+public class Mailbox<M> implements Messenger<M> {
 
     @NonNull
-    public final Message<M> take() {
-        final Message<M> result;
+    private final Messenger.Callback<M> mCallback;
 
-        mLock.lock();
-        try {
-            result = mMessages.poll();
-        } finally {
-            mLock.unlock();
+    private final Queue<Message<M>> mMessages = new LinkedList<>();
+
+    @Nullable
+    private Messenger<M> mMessenger;
+
+    public Mailbox(@NonNull final Messenger.Callback<M> callback) {
+        super();
+
+        mCallback = callback;
+    }
+
+    public final boolean isAttached() {
+        return mMessenger != null;
+    }
+
+    public final boolean attach(@NonNull final Factory factory) {
+        boolean success = (mMessenger == null) || mMessenger.stop(false);
+
+        if (success) {
+            mMessenger = factory.create(mCallback);
+            while (success && !mMessages.isEmpty()) {
+                if (!mMessages.poll().send(mMessenger)) {
+                    success = false;
+                    mMessenger = null;
+                }
+            }
         }
 
-        return result;
+        return success;
+    }
+
+    public final void detach() {
+        mMessenger = null;
+    }
+
+    @Override
+    public final boolean send(final int message) {
+        return (mMessenger == null) ?
+                (mMessages.isEmpty() ?
+                        mCallback.onMessage(message) :
+                        mMessages.offer(new Message.Control<M>(message))) :
+                mMessenger.send(message);
+    }
+
+    @Override
+    public final boolean send(@NonNull final M message) {
+        return (mMessenger == null) ?
+                mMessages.offer(new Message.User<>(message)) :
+                mMessenger.send(message);
+    }
+
+    @Override
+    public final boolean stop(final boolean immediately) {
+        final boolean success = (mMessenger == null) || mMessenger.stop(immediately);
+
+        if (success) {
+            mMessenger = null;
+            if (immediately) {
+                mMessages.clear();
+            } else {
+                while (!mMessages.isEmpty()) {
+                    mMessages.poll().send(mCallback);
+                }
+            }
+        }
+
+        return success;
     }
 
     public interface Message<M> {

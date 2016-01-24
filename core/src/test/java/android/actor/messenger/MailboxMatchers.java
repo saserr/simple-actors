@@ -25,26 +25,26 @@ import org.hamcrest.TypeSafeMatcher;
 public final class MailboxMatchers {
 
     @NonNull
-    public static Matcher<Mailbox<?>> empty() {
-        return new Empty();
+    public static Matcher<Mailbox<?>> attached() {
+        return new Attached();
     }
 
-    private static final class Empty extends TypeSafeMatcher<Mailbox<?>> {
+    private static final class Attached extends TypeSafeMatcher<Mailbox<?>> {
 
         @Override
         protected boolean matchesSafely(final Mailbox<?> mailbox) {
-            return mailbox.isEmpty();
+            return mailbox.isAttached();
         }
 
         @Override
         protected void describeMismatchSafely(final Mailbox<?> mailbox,
                                               final Description mismatchDescription) {
-            mismatchDescription.appendText("was not empty"); //NON-NLS
+            mismatchDescription.appendText("was not attached"); //NON-NLS
         }
 
         @Override
         public void describeTo(final Description description) {
-            description.appendText("empty"); //NON-NLS
+            description.appendText("attached"); //NON-NLS
         }
     }
 

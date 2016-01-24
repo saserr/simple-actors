@@ -17,7 +17,6 @@
 package android.actor;
 
 import android.actor.executor.Executable;
-import android.actor.messenger.BufferedMessenger;
 import android.actor.messenger.Mailbox;
 import android.support.annotation.IntDef;
 import android.support.annotation.NonNull;
@@ -55,20 +54,17 @@ public class Reference<M> implements Executable {
     private final Actor<M> mActor;
     @NonNull
     private final Callback mCallback;
+    @NonNull
+    private final Task<M> mTask;
+    @NonNull
+    @GuardedBy("mLock")
+    private final Mailbox<M> mMailbox;
 
     private final Lock mLock = new ReentrantLock();
-    private final Mailbox<M> mMailbox = new Mailbox<>();
-
-    @Nullable
-    @GuardedBy("mLock")
-    private BufferedMessenger<M> mMessenger;
-    @Nullable
-    @GuardedBy("mLock")
-    private Task<M> mTask;
 
     @State
     @GuardedBy("mLock")
-    private int mState = State.STARTED;
+    private int mState = State.INITIALIZED;
 
     public Reference(@NonNull final Context context,
                      @NonNull final Actor<M> actor,
@@ -79,6 +75,9 @@ public class Reference<M> implements Executable {
         mName = context.getName();
         mActor = actor;
         mCallback = callback;
+
+        mTask = new Task<>(this, actor);
+        mMailbox = new Mailbox<>(mTask);
     }
 
     @NonNull
@@ -104,11 +103,11 @@ public class Reference<M> implements Executable {
 
         mLock.lock();
         try {
-            if (mState != State.STARTED) {
+            if ((mState != State.INITIALIZED) && (mState != State.STARTED)) {
                 throw new UnsupportedOperationException(this + " is stopped!");
             }
 
-            success = (mMessenger == null) ? mMailbox.put(message) : mMessenger.send(message);
+            success = mMailbox.send(message);
         } finally {
             mLock.unlock();
         }
@@ -121,24 +120,29 @@ public class Reference<M> implements Executable {
 
         mLock.lock();
         try {
-            if (mState == State.STARTED) {
-                if (mMessenger == null) {
+            switch (mState) {
+                case State.INITIALIZED:
                     success = stop(true);
-                } else {
-                    // TODO don't use isAttached(); Messenger should check that somehow
-                    if (mMessenger.isAttached()) {
-                        success = mMessenger.send(ControlMessage.STOP);
+                    break;
+                case State.STARTED:
+                    // TODO don't use isAttached(); Mailbox should check that somehow
+                    if (mMailbox.isAttached()) {
+                        success = mMailbox.send(ControlMessage.STOP);
                     } else {
-                        final boolean stopped = mMessenger.stop(false);
+                        final boolean stopped = mMailbox.stop(false);
                         success = stop(true) && stopped;
                     }
-                }
 
-                if (success && (mState == State.STARTED)) {
-                    mState = State.STOPPING;
-                }
-            } else {
-                success = true;
+                    if (success && (mState == State.STARTED)) {
+                        mState = State.STOPPING;
+                    }
+                    break;
+                case State.STOPPING:
+                case State.STOPPED:
+                    success = true;
+                    break;
+                default:
+                    throw new IllegalStateException("Unknown reference state: " + mState);
             }
         } finally {
             mLock.unlock();
@@ -153,14 +157,14 @@ public class Reference<M> implements Executable {
 
         mLock.lock();
         try {
-            if ((mState != State.STARTED)) {
-                throw new UnsupportedOperationException(this + " is stopped!");
-            }
-            if (mMessenger == null) {
+            if (mState == State.INITIALIZED) {
                 throw new UnsupportedOperationException(this + " hasn't been started!");
             }
+            if (mState != State.STARTED) {
+                throw new UnsupportedOperationException(this + " is stopped!");
+            }
 
-            success = mMessenger.attach(factory);
+            success = mMailbox.attach(factory);
         } finally {
             mLock.unlock();
         }
@@ -178,23 +182,23 @@ public class Reference<M> implements Executable {
 
         mLock.lock();
         try {
-            if (mState == State.STARTED) {
-                if (mMessenger != null) {
-                    mMessenger.detach();
-                }
-                success = true;
-            } else {
-                if (mMessenger == null) {
+            switch (mState) {
+                case State.INITIALIZED:
+                case State.STOPPED:
                     success = true;
-                } else {
+                    break;
+                case State.STARTED:
+                    mMailbox.detach();
+                    success = true;
+                    break;
+                case State.STOPPING:
                     if (Log.isLoggable(TAG, DEBUG)) {
-                        Log.d(TAG, this + " stopping the messenger"); //NON-NLS
+                        Log.d(TAG, this + " stopping the mailbox"); //NON-NLS
                     }
-                    success = mMessenger.stop(true);
-                    if (success) {
-                        mMessenger = null;
-                    }
-                }
+                    success = mMailbox.stop(true);
+                    break;
+                default:
+                    throw new IllegalStateException("Unknown reference state: " + mState);
             }
         } finally {
             mLock.unlock();
@@ -225,25 +229,20 @@ public class Reference<M> implements Executable {
 
         mLock.lock();
         try {
-            if (mState != State.STARTED) {
-                throw new UnsupportedOperationException(this + " is stopped!");
-            }
+            if (mState == State.STARTED) {
+                success = true;
+            } else {
+                if (mState != State.INITIALIZED) {
+                    throw new UnsupportedOperationException(this + " is stopped!");
+                }
 
-            if (mTask == null) {
                 try {
                     mActor.postStart(mContext, this);
-                    mTask = new Task<>(this, mActor);
-                    mMessenger = new BufferedMessenger<>(mTask);
+                    mState = State.STARTED;
                     success = true;
-                    while (success && !mMailbox.isEmpty()) {
-                        success = mMailbox.take().send(mMessenger);
-                    }
                 } catch (final Throwable error) {
                     Log.e(TAG, this + " failed to start! Stopping", error); // NON-NLS
-                    success = false;
                 }
-            } else {
-                success = true;
             }
 
             if (success) {
@@ -267,11 +266,15 @@ public class Reference<M> implements Executable {
 
         mLock.lock();
         try {
-            if (mState != State.STARTED) {
-                throw new UnsupportedOperationException(this + " is stopped!");
-            }
+            if (mState == State.INITIALIZED) {
+                success = true;
+            } else {
+                if (mState != State.STARTED) {
+                    throw new UnsupportedOperationException(this + " is stopped!");
+                }
 
-            success = (mMessenger == null) || mMessenger.send(ControlMessage.PAUSE);
+                success = mMailbox.send(ControlMessage.PAUSE);
+            }
         } finally {
             mLock.unlock();
         }
@@ -289,7 +292,7 @@ public class Reference<M> implements Executable {
         if (immediately) {
             mLock.lock();
             try {
-                if (mTask == null) {
+                if (mState == State.INITIALIZED) {
                     success = true;
                 } else {
                     success = mTask.stop();
@@ -334,11 +337,12 @@ public class Reference<M> implements Executable {
     }
 
     @Retention(SOURCE)
-    @IntDef({State.STARTED, State.STOPPING, State.STOPPED})
+    @IntDef({State.INITIALIZED, State.STARTED, State.STOPPING, State.STOPPED})
     private @interface State {
-        int STARTED = 1;
-        int STOPPING = 2;
-        int STOPPED = 3;
+        int INITIALIZED = 1;
+        int STARTED = 2;
+        int STOPPING = 3;
+        int STOPPED = 4;
     }
 
     @NotThreadSafe

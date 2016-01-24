@@ -17,7 +17,6 @@
 package android.actor;
 
 import android.actor.executor.Executable;
-import android.actor.messenger.BufferedMessenger;
 import android.actor.messenger.Mailbox;
 import android.support.annotation.NonNull;
 
@@ -46,8 +45,6 @@ public class ReferenceTest extends TestCase {
 
     @Mocked
     private Mailbox<String> mAllMailboxes;
-    @Mocked
-    private BufferedMessenger<String> mAllMessengers;
 
     @Injectable
     private Context mContext;
@@ -62,6 +59,7 @@ public class ReferenceTest extends TestCase {
 
     private Actor.Name mName;
     private Mailbox<String> mMailbox;
+    private Messenger.Callback<String> mMessengerCallback;
     private Reference<String> mReference;
 
     @BeforeMethod
@@ -73,16 +71,17 @@ public class ReferenceTest extends TestCase {
         }};
 
         mReference = new Reference<>(mContext, mActor, mCallback);
+        mMessengerCallback = Captured.as(Messenger.Callback.class);
 
         new Verifications() {{
-            mMailbox = new Mailbox<>();
             mContext.getName();
+            mMailbox = new Mailbox<>(withArgThat(is(Captured.into(mMessengerCallback))));
         }};
     }
 
     @AfterMethod
     public final void tearDown() {
-        verifyNoMoreInteractions(mAllMailboxes, mAllMessengers);
+        verifyNoMoreInteractions(mAllMailboxes);
         verifyNoMoreInteractions(mContext, mActor, mCallback, mExecutor, mMessengerFactory);
     }
 
@@ -96,41 +95,9 @@ public class ReferenceTest extends TestCase {
     public final void start(final Providers.Boolean success) {
         new StrictExpectations() {{
             mActor.postStart(mContext, mReference);
-            new BufferedMessenger<>((Messenger.Callback<String>) any);
-            mMailbox.isEmpty();
-            result = true;
             final Executor.Submission submission = mExecutor.submit(mReference);
             result = success.value() ? submission : null;
         }};
-
-        assertThat("reference start", mReference.start(mExecutor), is(success.value()));
-    }
-
-    @Test(groups = {"sanity", "sanity.reference"},
-            dataProvider = "success or failure", dataProviderClass = Providers.class)
-    public final void startWithPendingMessages(final Providers.Boolean success) {
-        new StrictExpectations() {{
-            mActor.postStart(mContext, mReference);
-            final Messenger<String> messenger =
-                    new BufferedMessenger<>((Messenger.Callback<String>) any);
-            mMailbox.isEmpty();
-            result = false;
-            final Mailbox.Message<String> message = mMailbox.take();
-            message.send(messenger);
-            result = success.value();
-        }};
-
-        if (success.value()) {
-            new StrictExpectations() {{
-                mMailbox.isEmpty();
-                result = true;
-                mExecutor.submit(mReference);
-            }};
-        } else {
-            new StrictExpectations(mReference) {{
-                mReference.stop(true);
-            }};
-        }
 
         assertThat("reference start", mReference.start(mExecutor), is(success.value()));
     }
@@ -151,12 +118,8 @@ public class ReferenceTest extends TestCase {
     public final void attach(final Providers.Boolean success) {
         new StrictExpectations() {{
             mActor.postStart(mContext, mReference);
-            final BufferedMessenger<String> messenger =
-                    new BufferedMessenger<>((Messenger.Callback<String>) any);
-            mMailbox.isEmpty();
-            result = true;
             mExecutor.submit(mReference);
-            messenger.attach(mMessengerFactory);
+            mMailbox.attach(mMessengerFactory);
             result = success.value();
         }};
 
@@ -178,12 +141,8 @@ public class ReferenceTest extends TestCase {
 
         new StrictExpectations() {{
             mActor.postStart(mContext, mReference);
-            final Messenger<String> messenger =
-                    new BufferedMessenger<>((Messenger.Callback<String>) any);
-            mMailbox.isEmpty();
-            result = true;
             mExecutor.submit(mReference);
-            messenger.send(message);
+            mMailbox.send(message);
             result = success.value();
         }};
 
@@ -197,7 +156,7 @@ public class ReferenceTest extends TestCase {
         final String message = isA(RandomMessage);
 
         new StrictExpectations() {{
-            mMailbox.put(message);
+            mMailbox.send(message);
             result = success.value();
         }};
 
@@ -207,33 +166,25 @@ public class ReferenceTest extends TestCase {
     @Test(groups = {"sanity", "sanity.reference"}, dependsOnMethods = "start")
     public final void receiveMessage() {
         final String message = isA(RandomMessage);
-        final Messenger.Callback<String> callback = Captured.as(Messenger.Callback.class);
 
         new StrictExpectations() {{
             mActor.postStart(mContext, mReference);
-            new BufferedMessenger<>(withArgThat(is(Captured.into(callback))));
-            mMailbox.isEmpty();
-            result = true;
             mExecutor.submit(mReference);
             mActor.onMessage(message);
         }};
 
         assertThat("reference start", mReference.start(mExecutor), is(true));
         final int success = Messenger.Delivery.SUCCESS;
-        assertThat("callback onMessage", callback.onMessage(message), is(success));
+        assertThat("callback onMessage", mMessengerCallback.onMessage(message), is(success));
     }
 
     @Test(dependsOnGroups = "sanity.reference",
             dataProvider = "success or failure", dataProviderClass = Providers.class)
     public final void actorOnMessageFails(final Providers.Boolean success) {
         final String message = isA(RandomMessage);
-        final Messenger.Callback<String> callback = Captured.as(Messenger.Callback.class);
 
         new StrictExpectations(mReference) {{
             mActor.postStart(mContext, mReference);
-            new BufferedMessenger<>(withArgThat(is(Captured.into(callback))));
-            mMailbox.isEmpty();
-            result = true;
             mExecutor.submit(mReference);
             mActor.onMessage(message);
             result = new RuntimeException("test failure");
@@ -243,19 +194,15 @@ public class ReferenceTest extends TestCase {
 
         assertThat("reference start", mReference.start(mExecutor), is(true));
         final int failure = Messenger.Delivery.FAILURE_NO_RETRY;
-        assertThat("callback onMessage", callback.onMessage(message), is(failure));
+        assertThat("callback onMessage", mMessengerCallback.onMessage(message), is(failure));
     }
 
     @Test(dependsOnGroups = "sanity.reference")
     public final void detach() {
         new StrictExpectations() {{
             mActor.postStart(mContext, mReference);
-            final BufferedMessenger<String> messenger =
-                    new BufferedMessenger<>((Messenger.Callback<String>) any);
-            mMailbox.isEmpty();
-            result = true;
             mExecutor.submit(mReference);
-            messenger.detach();
+            mMailbox.detach();
         }};
 
         assertThat("reference start", mReference.start(mExecutor), is(true));
@@ -272,12 +219,8 @@ public class ReferenceTest extends TestCase {
     public final void pause(final Providers.Boolean success) {
         new StrictExpectations() {{
             mActor.postStart(mContext, mReference);
-            final Messenger<String> messenger =
-                    new BufferedMessenger<>((Messenger.Callback<String>) any);
-            mMailbox.isEmpty();
-            result = true;
             mExecutor.submit(mReference);
-            messenger.send(PAUSE);
+            mMailbox.send(PAUSE);
             result = success.value();
         }};
 
@@ -293,51 +236,37 @@ public class ReferenceTest extends TestCase {
     @Test(dependsOnGroups = "sanity.reference",
             dataProvider = "success or failure", dataProviderClass = Providers.class)
     public final void receivePause(final Providers.Boolean success) {
-        final Messenger.Callback<String> callback = Captured.as(Messenger.Callback.class);
-
         new StrictExpectations() {{
             mActor.postStart(mContext, mReference);
-            new BufferedMessenger<>(withArgThat(is(Captured.into(callback))));
-            mMailbox.isEmpty();
-            result = true;
             final Executor.Submission submission = mExecutor.submit(mReference);
             notNull(submission).stop();
             result = success.value();
         }};
 
         assertThat("reference start", mReference.start(mExecutor), is(true));
-        assertThat("callback onMessage(PAUSE)", callback.onMessage(PAUSE), is(success.value()));
+        assertThat("callback onMessage(PAUSE)", mMessengerCallback.onMessage(PAUSE), is(success.value()));
     }
 
     @Test(dependsOnGroups = "sanity.reference", dependsOnMethods = "pause")
     public final void doubleReceivePause() {
-        final Messenger.Callback<String> callback = Captured.as(Messenger.Callback.class);
-
         new StrictExpectations() {{
             mActor.postStart(mContext, mReference);
-            new BufferedMessenger<>(withArgThat(is(Captured.into(callback))));
-            mMailbox.isEmpty();
-            result = true;
             final Executor.Submission submission = mExecutor.submit(mReference);
             notNull(submission).stop();
             result = true;
         }};
 
         assertThat("reference start", mReference.start(mExecutor), is(true));
-        assertThat("callback onMessage", callback.onMessage(PAUSE), is(true));
-        assertThat("callback onMessage", callback.onMessage(PAUSE), is(true));
+        assertThat("callback onMessage", mMessengerCallback.onMessage(PAUSE), is(true));
+        assertThat("callback onMessage", mMessengerCallback.onMessage(PAUSE), is(true));
     }
 
     @Test(dependsOnGroups = "sanity.reference", dependsOnMethods = "pause")
     public final void startAfterPause() {
         new StrictExpectations() {{
             mActor.postStart(mContext, mReference);
-            final Messenger<String> messenger =
-                    new BufferedMessenger<>((Messenger.Callback<String>) any);
-            mMailbox.isEmpty();
-            result = true;
             final Executor.Submission submission = mExecutor.submit(mReference);
-            messenger.send(PAUSE);
+            mMailbox.send(PAUSE);
             result = true;
             notNull(submission).stop();
             result = true;
@@ -354,14 +283,10 @@ public class ReferenceTest extends TestCase {
     public final void stopWhenAttached(final Providers.Boolean success) {
         new StrictExpectations() {{
             mActor.postStart(mContext, mReference);
-            final BufferedMessenger<String> messenger =
-                    new BufferedMessenger<>((Messenger.Callback<String>) any);
-            mMailbox.isEmpty();
-            result = true;
             mExecutor.submit(mReference);
-            messenger.isAttached();
+            mMailbox.isAttached();
             result = true;
-            messenger.send(STOP);
+            mMailbox.send(STOP);
             result = success.value();
         }};
 
@@ -376,15 +301,10 @@ public class ReferenceTest extends TestCase {
         final AtomicReference<Executor.Submission> submission = new AtomicReference<>();
         new StrictExpectations() {{
             mActor.postStart(mContext, mReference);
-            final BufferedMessenger<String> messenger =
-                    new BufferedMessenger<>((Messenger.Callback<String>) any);
-            mMailbox.isEmpty();
-            result = true;
             submission.set(mExecutor.submit(mReference));
-            ;
-            messenger.isAttached();
+            mMailbox.isAttached();
             result = false;
-            messenger.stop(false);
+            mMailbox.stop(false);
             result = success.value();
         }};
 
@@ -427,20 +347,33 @@ public class ReferenceTest extends TestCase {
     @Test(dependsOnGroups = "sanity.reference",
             dataProvider = "success or failure", dataProviderClass = Providers.class)
     public final void receiveStop(final Providers.Boolean success) {
-        final Messenger.Callback<String> callback = Captured.as(Messenger.Callback.class);
-
         new StrictExpectations(mReference) {{
             mActor.postStart(mContext, mReference);
-            new BufferedMessenger<>(withArgThat(is(Captured.into(callback))));
-            mMailbox.isEmpty();
-            result = true;
             mExecutor.submit(mReference);
             mReference.stop(true);
             result = success.value();
         }};
 
         assertThat("reference start", mReference.start(mExecutor), is(true));
-        assertThat("callback onMessage(STOP)", callback.onMessage(STOP), is(success.value()));
+        assertThat("callback onMessage(STOP)", mMessengerCallback.onMessage(STOP), is(success.value()));
+    }
+
+    @Test(dependsOnGroups = "sanity.reference",
+            expectedExceptions = UnsupportedOperationException.class,
+            expectedExceptionsMessageRegExp = "Actor\\(.*\\) is stopped!")
+    public final void startWhileStopping() {
+        new StrictExpectations() {{
+            mActor.postStart(mContext, mReference);
+            mExecutor.submit(mReference);
+            mMailbox.isAttached();
+            result = true;
+            mMailbox.send(STOP);
+            result = true;
+        }};
+
+        assertThat("reference start", mReference.start(mExecutor), is(true));
+        assertThat("reference stop", mReference.stop(), is(true));
+        mReference.start(mExecutor);
     }
 
     @Test(dependsOnGroups = "sanity.reference", dependsOnMethods = "stopBeforeStart",
@@ -455,6 +388,24 @@ public class ReferenceTest extends TestCase {
         mReference.start(mExecutor);
     }
 
+    @Test(dependsOnGroups = "sanity.reference",
+            expectedExceptions = UnsupportedOperationException.class,
+            expectedExceptionsMessageRegExp = "Actor\\(.*\\) is stopped!")
+    public final void attachWhileStopping() {
+        new StrictExpectations() {{
+            mActor.postStart(mContext, mReference);
+            mExecutor.submit(mReference);
+            mMailbox.isAttached();
+            result = true;
+            mMailbox.send(STOP);
+            result = true;
+        }};
+
+        assertThat("reference start", mReference.start(mExecutor), is(true));
+        assertThat("reference stop", mReference.stop(), is(true));
+        mReference.attach(mMessengerFactory);
+    }
+
     @Test(dependsOnGroups = "sanity.reference", dependsOnMethods = "stopBeforeStart",
             expectedExceptions = UnsupportedOperationException.class,
             expectedExceptionsMessageRegExp = "Actor\\(.*\\) is stopped!")
@@ -465,6 +416,24 @@ public class ReferenceTest extends TestCase {
 
         assertThat("reference stop", mReference.stop(), is(true));
         mReference.attach(mMessengerFactory);
+    }
+
+    @Test(dependsOnGroups = "sanity.reference",
+            expectedExceptions = UnsupportedOperationException.class,
+            expectedExceptionsMessageRegExp = "Actor\\(.*\\) is stopped!")
+    public final void tellWhileStopping() {
+        new StrictExpectations() {{
+            mActor.postStart(mContext, mReference);
+            mExecutor.submit(mReference);
+            mMailbox.isAttached();
+            result = true;
+            mMailbox.send(STOP);
+            result = true;
+        }};
+
+        assertThat("reference start", mReference.start(mExecutor), is(true));
+        assertThat("reference stop", mReference.stop(), is(true));
+        mReference.tell(a(RandomMessage));
     }
 
     @Test(dependsOnGroups = "sanity.reference", dependsOnMethods = "stopBeforeStart",
@@ -494,16 +463,12 @@ public class ReferenceTest extends TestCase {
     public final void detachAfterStartAndStop(final Providers.Boolean success) {
         new StrictExpectations() {{
             mActor.postStart(mContext, mReference);
-            final BufferedMessenger<String> messenger =
-                    new BufferedMessenger<>((Messenger.Callback<String>) any);
-            mMailbox.isEmpty();
-            result = true;
             mExecutor.submit(mReference);
-            messenger.isAttached();
+            mMailbox.isAttached();
             result = true;
-            messenger.send(STOP);
+            mMailbox.send(STOP);
             result = true;
-            messenger.stop(true);
+            mMailbox.stop(true);
             result = success.value();
         }};
 
@@ -541,9 +506,6 @@ public class ReferenceTest extends TestCase {
     public final void immediateStop(final Providers.Boolean success) {
         new StrictExpectations() {{
             mActor.postStart(mContext, mReference);
-            new BufferedMessenger<>((Messenger.Callback<String>) any);
-            mMailbox.isEmpty();
-            result = true;
             final Executor.Submission submission = mExecutor.submit(mReference);
             notNull(submission).stop();
             result = success.value();
@@ -572,9 +534,6 @@ public class ReferenceTest extends TestCase {
     public final void actorPreStopFails() {
         new StrictExpectations() {{
             mActor.postStart(mContext, mReference);
-            new BufferedMessenger<>((Messenger.Callback<String>) any);
-            mMailbox.isEmpty();
-            result = true;
             final Executor.Submission submission = mExecutor.submit(mReference);
             notNull(submission).stop();
             result = true;
@@ -590,18 +549,13 @@ public class ReferenceTest extends TestCase {
 
     @Test(dependsOnGroups = "sanity.reference")
     public final void receiveUnknownControlMessage() {
-        final Messenger.Callback<String> callback = Captured.as(Messenger.Callback.class);
-
         new StrictExpectations() {{
             mActor.postStart(mContext, mReference);
-            new BufferedMessenger<>(withArgThat(is(Captured.into(callback))));
-            mMailbox.isEmpty();
-            result = true;
             mExecutor.submit(mReference);
         }};
 
         assertThat("reference start", mReference.start(mExecutor), is(true));
-        assertThat("callback onMessage(unknown)", callback.onMessage(0), is(false));
+        assertThat("callback onMessage(unknown)", mMessengerCallback.onMessage(0), is(false));
     }
 
     @Test(groups = {"sanity", "sanity.reference"}, dependsOnMethods = "receiveMessage")
@@ -617,12 +571,9 @@ public class ReferenceTest extends TestCase {
         };
 
         new StrictExpectations() {{
-            final Mailbox<String> mailbox = new Mailbox<>();
             mContext.getName();
             result = mName;
-            new BufferedMessenger<>(withArgThat(is(Captured.into(callback))));
-            mailbox.isEmpty();
-            result = true;
+            new Mailbox<>(withArgThat(is(Captured.into(callback))));
             mExecutor.submit((Executable) any);
         }};
 
