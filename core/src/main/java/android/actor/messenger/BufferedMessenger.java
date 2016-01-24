@@ -70,10 +70,8 @@ public class BufferedMessenger<M> implements Messenger<M> {
     }
 
     @Override
-    public final boolean send(@NonNull final M message, final long delay) {
-        return (mMessenger == null) ?
-                mMailbox.put(message, delay) :
-                mMessenger.send(message, delay);
+    public final boolean send(@NonNull final M message) {
+        return (mMessenger == null) ? mMailbox.put(message) : mMessenger.send(message);
     }
 
     @Override

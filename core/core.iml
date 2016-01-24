@@ -100,7 +100,7 @@
     <orderEntry type="library" exported="" scope="TEST" name="junit-4.10" level="project" />
     <orderEntry type="library" exported="" scope="TEST" name="snakeyaml-1.15" level="project" />
     <orderEntry type="library" exported="" name="support-annotations-23.1.1" level="project" />
-    <orderEntry type="library" exported="" scope="TEST" name="testng-6.9.9" level="project" />
     <orderEntry type="library" exported="" name="annotations-java5-15.0" level="project" />
+    <orderEntry type="library" exported="" scope="TEST" name="testng-6.9.9" level="project" />
   </component>
 </module>

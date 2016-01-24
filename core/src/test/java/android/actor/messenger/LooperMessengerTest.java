@@ -151,11 +151,10 @@ public class LooperMessengerTest extends TestCase {
 
     @Test(groups = {"sanity", "sanity.messenger", "sanity.messenger.looper"},
             dataProvider = "(delivery, thread, messages)")
-    public final void sendUserMessageWithNoDelay(final Providers.Value<Integer> delivery,
-                                                 final Providers.Boolean onSameThread,
-                                                 final Providers.Boolean messages) {
+    public final void sendUserMessage(final Providers.Value<Integer> delivery,
+                                      final Providers.Boolean onSameThread,
+                                      final Providers.Boolean messages) {
         final String message = isA(RandomUserMessage);
-        final long noDelay = isA(RandomNoDelay);
 
         new NonStrictExpectations(mMessenger) {{
             mMessenger.isOnCurrentThread();
@@ -186,27 +185,7 @@ public class LooperMessengerTest extends TestCase {
         }
 
         final boolean success = delivery.value() == Messenger.Delivery.SUCCESS;
-        assertThat("messenger send", mMessenger.send(message, noDelay), is(success));
-    }
-
-    @Test(groups = {"sanity", "sanity.messenger", "sanity.messenger.looper"},
-            dataProvider = "success or failure", dataProviderClass = Providers.class)
-    public final void sendUserMessageWithDelay(final Providers.Boolean success) {
-        final String message = isA(RandomUserMessage);
-        final long delay = isA(RandomDelay);
-
-        new StrictExpectations() {{
-            final Message msg = mHandler.obtainMessage(USER, message);
-            mHandler.sendMessageDelayed(msg, delay);
-            result = success.value();
-        }};
-
-        assertThat("messenger send", mMessenger.send(message, delay), is(success.value()));
-
-        new Verifications() {{
-            mLooper.getThread();
-            times = 0;
-        }};
+        assertThat("messenger send", mMessenger.send(message), is(success));
     }
 
     @Test(dependsOnGroups = "sanity.messenger.looper",
@@ -272,8 +251,6 @@ public class LooperMessengerTest extends TestCase {
 
     private static final RandomDataGenerator<Integer> RandomControlMessage = RandomInteger;
     private static final RandomDataGenerator<String> RandomUserMessage = RandomString;
-    private static final RandomDataGenerator<Long> RandomDelay = RandomLong.thatIs(Positive);
-    private static final RandomDataGenerator<Long> RandomNoDelay = RandomLong.thatIs(NonPositive);
 
     @NonNull
     @DataProvider(name = "(success, thread, messages)")

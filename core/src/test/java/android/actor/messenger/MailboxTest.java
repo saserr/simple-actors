@@ -19,14 +19,12 @@ package android.actor.messenger;
 import android.actor.Messenger;
 import android.actor.Providers;
 import android.actor.TestCase;
-import android.os.SystemClock;
 
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import mockit.Injectable;
-import mockit.Mocked;
 import mockit.StrictExpectations;
 
 import static android.actor.messenger.MailboxMatchers.empty;
@@ -36,11 +34,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class MailboxTest extends TestCase {
-
-    private static final long NoDelay = 0L;
-
-    @Mocked
-    private SystemClock mSystemClock;
 
     @Injectable
     private Messenger.Callback<String> mCallback;
@@ -64,73 +57,32 @@ public class MailboxTest extends TestCase {
         assertThat("mailbox", mMailbox, is(empty()));
     }
 
-    @Test(dependsOnGroups = "sanity.mailbox")
-    public final void doNotSendUserMessageToCallbackBeforeDelay() {
-        final String message = isA(RandomUserMessage);
-        final long delay = isA(RandomDelay);
-
-        new StrictExpectations() {{
-            SystemClock.uptimeMillis();
-            result = 0;
-            result = delay - 1;
-        }};
-
-        assertThat("mailbox put", mMailbox.put(message, delay), is(true));
-        assertThat("mailbox take", mMailbox.take().send(mCallback), is(false));
-    }
-
     @Test(groups = {"sanity", "sanity.mailbox"},
             dataProvider = "delivery", dataProviderClass = MessengerProviders.class)
-    public final void sendUserMessageToCallbackAfterDelay(final Providers.Value<Integer> delivery) {
+    public final void sendUserMessageToCallback(final Providers.Value<Integer> delivery) {
         final String message = isA(RandomUserMessage);
-        final long delay = isA(RandomDelay);
 
         new StrictExpectations() {{
-            SystemClock.uptimeMillis();
-            result = 0;
-            result = delay;
             mCallback.onMessage(message);
             result = delivery.value();
         }};
 
-        assertThat("mailbox put", mMailbox.put(message, delay), is(true));
+        assertThat("mailbox put", mMailbox.put(message), is(true));
         final boolean success = delivery.value() == Messenger.Delivery.SUCCESS;
         assertThat("mailbox take", mMailbox.take().send(mCallback), is(success));
     }
 
-    @Test(dependsOnGroups = "sanity.mailbox",
-            dataProvider = "success or failure", dataProviderClass = Providers.class)
-    public final void sendUserMessageToMessengerBeforeDelay(final Providers.Boolean success) {
-        final String message = isA(RandomUserMessage);
-        final long delay = isA(RandomDelay);
-
-        new StrictExpectations() {{
-            SystemClock.uptimeMillis();
-            result = 0;
-            result = delay - 1;
-            mMessenger.send(message, 1);
-            result = success.value();
-        }};
-
-        assertThat("mailbox put", mMailbox.put(message, delay), is(true));
-        assertThat("mailbox take", mMailbox.take().send(mMessenger), is(success.value()));
-    }
-
     @Test(groups = {"sanity", "sanity.mailbox"},
             dataProvider = "success or failure", dataProviderClass = Providers.class)
-    public final void sendUserMessageToMessengerAfterDelay(final Providers.Boolean success) {
+    public final void sendUserMessageToMessenger(final Providers.Boolean success) {
         final String message = isA(RandomUserMessage);
-        final long delay = isA(RandomDelay);
 
         new StrictExpectations() {{
-            SystemClock.uptimeMillis();
-            result = 0;
-            result = delay;
-            mMessenger.send(message, NoDelay);
+            mMessenger.send(message);
             result = success.value();
         }};
 
-        assertThat("mailbox put", mMailbox.put(message, delay), is(true));
+        assertThat("mailbox put", mMailbox.put(message), is(true));
         assertThat("mailbox take", mMailbox.take().send(mMessenger), is(success.value()));
     }
 
@@ -184,5 +136,4 @@ public class MailboxTest extends TestCase {
 
     private static final RandomDataGenerator<Integer> RandomControlMessage = RandomInteger;
     private static final RandomDataGenerator<String> RandomUserMessage = RandomString;
-    private static final RandomDataGenerator<Long> RandomDelay = RandomLong.thatIs(Positive);
 }

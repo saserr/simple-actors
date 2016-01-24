@@ -43,6 +43,7 @@ public class SimpleExecutor implements Executor {
     @NonNls
     public static final String EXECUTOR_STOPPED = "Executor is stopped";
 
+    // TODO use open linked list with O(1) prepend and remove instead of HashSet
     @GuardedBy("mLock")
     private final Collection<Executable> mExecutables = new HashSet<>();
     private final Lock mLock = new ReentrantLock();

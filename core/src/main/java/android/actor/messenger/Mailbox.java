@@ -27,8 +27,6 @@ import java.util.Queue;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-import static android.os.SystemClock.uptimeMillis;
-
 @ThreadSafe
 public class Mailbox<M> {
 
@@ -72,10 +70,10 @@ public class Mailbox<M> {
         return result;
     }
 
-    public final boolean put(@NonNull final M message, final long delay) {
+    public final boolean put(@NonNull final M message) {
         final boolean result;
 
-        final Message<M> msg = new Message.User<>(message, delay);
+        final Message<M> msg = new Message.User<>(message);
         mLock.lock();
         try {
             result = mMessages.offer(msg);
@@ -133,27 +131,21 @@ public class Mailbox<M> {
 
             @NonNull
             private final M mMessage;
-            private final long mAtTime;
 
-            public User(@NonNull final M message, final long delay) {
+            public User(@NonNull final M message) {
                 super();
 
                 mMessage = message;
-                mAtTime = uptimeMillis() + delay;
             }
 
             @Override
             public boolean send(@NonNull final Messenger.Callback<M> callback) {
-                return (mAtTime <= uptimeMillis()) &&
-                        (callback.onMessage(mMessage) == Messenger.Delivery.SUCCESS);
+                return callback.onMessage(mMessage) == Messenger.Delivery.SUCCESS;
             }
 
             @Override
             public boolean send(@NonNull final Messenger<M> messenger) {
-                final long now = uptimeMillis();
-                return (now < mAtTime) ?
-                        messenger.send(mMessage, mAtTime - now) :
-                        messenger.send(mMessage, 0);
+                return messenger.send(mMessage);
             }
         }
     }

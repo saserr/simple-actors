@@ -19,7 +19,6 @@ package android.actor;
 import android.actor.executor.Executable;
 import android.actor.messenger.BufferedMessenger;
 import android.actor.messenger.Mailbox;
-import android.os.SystemClock;
 import android.support.annotation.NonNull;
 
 import org.testng.annotations.AfterMethod;
@@ -38,7 +37,6 @@ import static android.actor.Reference.ControlMessage.PAUSE;
 import static android.actor.Reference.ControlMessage.STOP;
 import static android.actor.ReferenceMatchers.hasName;
 import static android.actor.ReferenceMatchers.stopped;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -46,10 +44,6 @@ import static org.hamcrest.Matchers.not;
 @SuppressWarnings("unchecked")
 public class ReferenceTest extends TestCase {
 
-    private static final long NoDelay = 0L;
-
-    @Mocked
-    private SystemClock mSystemClock;
     @Mocked
     private Mailbox<String> mAllMailboxes;
     @Mocked
@@ -189,34 +183,12 @@ public class ReferenceTest extends TestCase {
             mMailbox.isEmpty();
             result = true;
             mExecutor.submit(mReference);
-            messenger.send(message, NoDelay);
+            messenger.send(message);
             result = success.value();
         }};
 
         assertThat("reference start", mReference.start(mExecutor), is(true));
         assertThat("reference tell", mReference.tell(message), is(success.value()));
-    }
-
-    @Test(groups = {"sanity", "sanity.reference"}, dependsOnMethods = "start",
-            dataProvider = "success or failure", dataProviderClass = Providers.class)
-    public final void tellWithDelay(final Providers.Boolean success) {
-        final String message = isA(RandomMessage);
-        final int delay = isA(RandomDelay);
-
-        new StrictExpectations() {{
-            mActor.postStart(mContext, mReference);
-            final Messenger<String> messenger =
-                    new BufferedMessenger<>((Messenger.Callback<String>) any);
-            mMailbox.isEmpty();
-            result = true;
-            mExecutor.submit(mReference);
-            messenger.send(message, delay);
-            result = success.value();
-        }};
-
-        assertThat("reference start", mReference.start(mExecutor), is(true));
-        final boolean told = mReference.tell(message, delay, MILLISECONDS);
-        assertThat("reference tell", told, is(success.value()));
     }
 
     @Test(groups = {"sanity", "sanity.reference"},
@@ -225,26 +197,11 @@ public class ReferenceTest extends TestCase {
         final String message = isA(RandomMessage);
 
         new StrictExpectations() {{
-            mMailbox.put(message, NoDelay);
+            mMailbox.put(message);
             result = success.value();
         }};
 
         assertThat("reference tell", mReference.tell(message), is(success.value()));
-    }
-
-    @Test(groups = {"sanity", "sanity.reference"},
-            dataProvider = "success or failure", dataProviderClass = Providers.class)
-    public final void tellWithDelayBeforeStart(final Providers.Boolean success) {
-        final String message = isA(RandomMessage);
-        final int delay = isA(RandomDelay);
-
-        new StrictExpectations() {{
-            mMailbox.put(message, delay);
-            result = success.value();
-        }};
-
-        final boolean told = mReference.tell(message, delay, MILLISECONDS);
-        assertThat("reference tell", told, is(success.value()));
     }
 
     @Test(groups = {"sanity", "sanity.reference"}, dependsOnMethods = "start")
@@ -423,7 +380,8 @@ public class ReferenceTest extends TestCase {
                     new BufferedMessenger<>((Messenger.Callback<String>) any);
             mMailbox.isEmpty();
             result = true;
-            submission.set(mExecutor.submit(mReference));;
+            submission.set(mExecutor.submit(mReference));
+            ;
             messenger.isAttached();
             result = false;
             messenger.stop(false);
@@ -677,5 +635,4 @@ public class ReferenceTest extends TestCase {
 
     private static final RandomDataGenerator<String> RandomName = RandomString;
     private static final RandomDataGenerator<String> RandomMessage = RandomString;
-    private static final RandomDataGenerator<Integer> RandomDelay = RandomInteger.thatIs(Positive);
 }

@@ -27,7 +27,7 @@ public interface Messenger<M> {
 
     boolean send(final int message);
 
-    boolean send(@NonNull final M message, final long delay);
+    boolean send(@NonNull final M message);
 
     boolean stop(final boolean immediately);
 

@@ -33,14 +33,12 @@ import org.jetbrains.annotations.NonNls;
 
 import java.lang.annotation.Retention;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 import static android.util.Log.DEBUG;
 import static android.util.Log.INFO;
 import static java.lang.annotation.RetentionPolicy.SOURCE;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 @ThreadSafe
 public class Reference<M> implements Executable {
@@ -102,12 +100,6 @@ public class Reference<M> implements Executable {
     }
 
     public final boolean tell(@NonNull final M message) {
-        return tell(message, 0, MILLISECONDS);
-    }
-
-    public final boolean tell(@NonNull final M message,
-                              final int delay,
-                              @NonNull final TimeUnit unit) {
         final boolean success;
 
         mLock.lock();
@@ -116,10 +108,7 @@ public class Reference<M> implements Executable {
                 throw new UnsupportedOperationException(this + " is stopped!");
             }
 
-            final long delayInMillis = unit.toMillis(delay);
-            success = (mMessenger == null) ?
-                    mMailbox.put(message, delayInMillis) :
-                    mMessenger.send(message, delayInMillis);
+            success = (mMessenger == null) ? mMailbox.put(message) : mMessenger.send(message);
         } finally {
             mLock.unlock();
         }

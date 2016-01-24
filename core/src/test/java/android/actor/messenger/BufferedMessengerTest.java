@@ -200,14 +200,13 @@ public class BufferedMessengerTest extends TestCase {
             dataProvider = "success or failure", dataProviderClass = Providers.class)
     public final void sendUserMessageWhenUnattached(final Providers.Boolean success) {
         final String message = isA(RandomUserMessage);
-        final long delay = isA(RandomDelay);
 
         new StrictExpectations() {{
-            mMailbox.put(message, delay);
+            mMailbox.put(message);
             result = success.value();
         }};
 
-        assertThat("messenger send", mMessenger.send(message, delay), is(success.value()));
+        assertThat("messenger send", mMessenger.send(message), is(success.value()));
     }
 
     @Test(groups = {"sanity", "sanity.messenger", "sanity.messenger.buffered"},
@@ -215,18 +214,17 @@ public class BufferedMessengerTest extends TestCase {
             dataProvider = "success or failure", dataProviderClass = Providers.class)
     public final void sendUserMessageWhenAttached(final Providers.Boolean success) {
         final String message = isA(RandomUserMessage);
-        final long delay = isA(RandomDelay);
 
         new StrictExpectations() {{
             final Messenger<String> messenger = mMessengerFactory.create(mCallback);
             mMailbox.isEmpty();
             result = true;
-            messenger.send(message, delay);
+            messenger.send(message);
             result = success.value();
         }};
 
         assertThat("messenger attach", mMessenger.attach(mMessengerFactory), is(true));
-        assertThat("messenger send", mMessenger.send(message, delay), is(success.value()));
+        assertThat("messenger send", mMessenger.send(message), is(success.value()));
     }
 
     @Test(dependsOnGroups = "sanity.messenger.buffered",
@@ -300,7 +298,6 @@ public class BufferedMessengerTest extends TestCase {
 
     private static final RandomDataGenerator<Integer> RandomControlMessage = RandomInteger;
     private static final RandomDataGenerator<String> RandomUserMessage = RandomString;
-    private static final RandomDataGenerator<Long> RandomDelay = RandomLong.thatIs(Positive);
 
     @NonNull
     @DataProvider(name = "(success, immediateness, emptiness)")

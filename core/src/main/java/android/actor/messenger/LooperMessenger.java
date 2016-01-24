@@ -67,19 +67,16 @@ public class LooperMessenger<M> implements Messenger<M> {
     }
 
     @Override
-    public final boolean send(@NonNull final M message, final long delay) {
+    public final boolean send(@NonNull final M message) {
         final boolean success;
 
         @Messenger.Delivery final int delivered =
-                ((delay <= 0) && isOnCurrentThread() && !hasUndeliveredMessages()) ?
+                (isOnCurrentThread() && !hasUndeliveredMessages()) ?
                         mCallback.onMessage(message) :
                         Delivery.FAILURE_CAN_RETRY;
 
         if (delivered == Delivery.FAILURE_CAN_RETRY) {
-            final Message msg = mHandler.obtainMessage(MessageType.USER, message);
-            success = (delay > 0) ?
-                    mHandler.sendMessageDelayed(msg, delay) :
-                    mHandler.sendMessage(msg);
+            success = mHandler.sendMessage(mHandler.obtainMessage(MessageType.USER, message));
         } else {
             success = delivered == Delivery.SUCCESS;
         }
