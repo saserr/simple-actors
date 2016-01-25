@@ -17,7 +17,8 @@
 package android.actor.executor;
 
 import android.actor.Captured;
-import android.actor.Messenger;
+import android.actor.Channel;
+import android.actor.Channels;
 import android.actor.Providers;
 import android.actor.TestCase;
 import android.os.Looper;
@@ -27,8 +28,6 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
-
-import java.util.concurrent.atomic.AtomicReference;
 
 import mockit.Injectable;
 import mockit.Mocked;
@@ -44,15 +43,18 @@ import static org.hamcrest.Matchers.not;
 public class DispatcherTest extends TestCase {
 
     @Mocked
-    private Looper mLooper;
-    @Mocked
-    private SimpleExecutor mAllManagers;
-    @Mocked
     private Thread mAllThreads;
+    @Mocked
+    private Looper mAllLoopers;
+    @Mocked
+    private Channels mChannels;
+    @Mocked
+    private SimpleExecutor mAllSimpleExecutors;
 
     @Injectable
     private Executable mExecutable;
 
+    private Looper mLooper;
     private Dispatcher mDispatcher;
     private SimpleExecutor mExecutor;
 
@@ -67,7 +69,7 @@ public class DispatcherTest extends TestCase {
 
     @AfterMethod
     public final void tearDown() {
-        verifyNoMoreInteractions(mAllManagers);
+        verifyNoMoreInteractions(mAllLoopers, mChannels, mAllSimpleExecutors);
         verifyNoMoreInteractions(mExecutor, mExecutable);
     }
 
@@ -106,14 +108,14 @@ public class DispatcherTest extends TestCase {
             dataProvider = "success or failure", dataProviderClass = Providers.class)
     public final void start(final Providers.Boolean success) {
         final Runnable runnable = Captured.as(Runnable.class);
-        final AtomicReference<Looper> looper = new AtomicReference<>();
 
         new StrictExpectations() {{
             final Thread thread = new Thread(withArgThat(is(Captured.into(runnable))));
             thread.start();
             Looper.prepare();
-            looper.set(Looper.myLooper());
-            mExecutor.start((Messenger.Factory) any);
+            mLooper = Looper.myLooper();
+            final Channel.Factory factory = Channels.from(mLooper);
+            mExecutor.start(factory);
             result = success.value();
         }};
 
@@ -124,7 +126,7 @@ public class DispatcherTest extends TestCase {
             }};
         } else {
             new StrictExpectations() {{
-                looper.get().quit();
+                mLooper.quit();
             }};
         }
 

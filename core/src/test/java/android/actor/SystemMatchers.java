@@ -48,7 +48,7 @@ public final class SystemMatchers {
         @NonNull
         private final Expected mExpected;
 
-        State(@NonNull final Expected expected) {
+        private State(@NonNull final Expected expected) {
             super();
 
             mExpected = expected;

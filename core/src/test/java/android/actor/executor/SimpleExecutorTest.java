@@ -16,7 +16,10 @@
 
 package android.actor.executor;
 
-import android.actor.*;
+import android.actor.Channel;
+import android.actor.Executor;
+import android.actor.Providers;
+import android.actor.TestCase;
 
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
@@ -39,7 +42,7 @@ public class SimpleExecutorTest extends TestCase {
     @Injectable
     private Executable mExecutable;
     @Injectable
-    private Messenger.Factory mFactory;
+    private Channel.Factory mFactory;
 
     private SimpleExecutor mExecutor;
 
@@ -54,7 +57,7 @@ public class SimpleExecutorTest extends TestCase {
     }
 
     @Test(groups = {"sanity", "sanity.executor", "sanity.executor.simple"})
-    public final void newlyCreatedManagerIsEmpty() {
+    public final void newlyCreatedSimpleExecutorIsEmpty() {
         assertThat("executor", mExecutor, is(empty()));
         assertThat("executor", mExecutor, hasSize(0));
     }
@@ -116,7 +119,8 @@ public class SimpleExecutorTest extends TestCase {
         }};
 
         assertThat("executor start", mExecutor.start(mFactory), is(true));
-        assertThat("submission", mExecutor.submit(mExecutable), is(success.value() ? notNullValue() : nullValue()));
+        final Executor.Submission submission = mExecutor.submit(mExecutable);
+        assertThat("submission", submission, is(success.value() ? notNullValue() : nullValue()));
         assertThat("executor", mExecutor, is(success.value() ? not(empty()) : empty()));
         assertThat("executor", mExecutor, hasSize(success.value() ? 1 : 0));
     }

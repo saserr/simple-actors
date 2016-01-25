@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package android.actor.messenger;
+package android.actor.channel;
 
 import android.support.annotation.NonNull;
 
@@ -23,32 +23,32 @@ import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
 import org.jetbrains.annotations.NonNls;
 
-public final class LooperMessengerMatchers {
+public final class LooperChannelMatchers {
 
     @NonNull
-    public static Matcher<LooperMessenger<?>> onCurrentThread() {
+    public static Matcher<LooperChannel<?>> onCurrentThread() {
         return new OnCurrentThread();
     }
 
     @NonNull
-    public static Matcher<LooperMessenger<?>> hasUndeliveredMessages() {
+    public static Matcher<LooperChannel<?>> hasUndeliveredMessages() {
         return new HasUndeliveredMessages(true);
     }
 
     @NonNull
-    public static Matcher<LooperMessenger<?>> hasNoUndeliveredMessages() {
+    public static Matcher<LooperChannel<?>> hasNoUndeliveredMessages() {
         return new HasUndeliveredMessages(false);
     }
 
-    private static final class OnCurrentThread extends TypeSafeMatcher<LooperMessenger<?>> {
+    private static final class OnCurrentThread extends TypeSafeMatcher<LooperChannel<?>> {
 
         @Override
-        protected boolean matchesSafely(final LooperMessenger<?> messenger) {
-            return messenger.isOnCurrentThread();
+        protected boolean matchesSafely(final LooperChannel<?> channel) {
+            return channel.isOnCurrentThread();
         }
 
         @Override
-        protected void describeMismatchSafely(final LooperMessenger<?> messenger,
+        protected void describeMismatchSafely(final LooperChannel<?> channel,
                                               final Description mismatchDescription) {
             mismatchDescription.appendText("was not on current thread"); //NON-NLS
         }
@@ -59,7 +59,7 @@ public final class LooperMessengerMatchers {
         }
     }
 
-    private static final class HasUndeliveredMessages extends TypeSafeMatcher<LooperMessenger<?>> {
+    private static final class HasUndeliveredMessages extends TypeSafeMatcher<LooperChannel<?>> {
 
         private final boolean mValue;
 
@@ -70,14 +70,14 @@ public final class LooperMessengerMatchers {
         }
 
         @Override
-        protected boolean matchesSafely(final LooperMessenger<?> messenger) {
-            return mValue == messenger.hasUndeliveredMessages();
+        protected boolean matchesSafely(final LooperChannel<?> channel) {
+            return mValue == channel.hasUndeliveredMessages();
         }
 
         @Override
-        protected void describeMismatchSafely(final LooperMessenger<?> messenger,
+        protected void describeMismatchSafely(final LooperChannel<?> channel,
                                               final Description mismatchDescription) {
-            mismatchDescription.appendText("had " + describe(messenger.hasUndeliveredMessages()) + "undelivered messages"); //NON-NLS
+            mismatchDescription.appendText("had " + describe(channel.hasUndeliveredMessages()) + "undelivered messages"); //NON-NLS
         }
 
         @Override
@@ -92,7 +92,7 @@ public final class LooperMessengerMatchers {
         }
     }
 
-    private LooperMessengerMatchers() {
+    private LooperChannelMatchers() {
         super();
     }
 }

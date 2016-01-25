@@ -18,7 +18,6 @@ package android.actor;
 
 import android.actor.executor.FixedSizeExecutor;
 import android.actor.executor.SimpleExecutor;
-import android.actor.messenger.Messengers;
 import android.support.annotation.NonNull;
 
 import static android.os.Looper.getMainLooper;
@@ -28,7 +27,7 @@ public final class Executors {
     @NonNull
     public static Executor mainThread() {
         final SimpleExecutor executor = new SimpleExecutor();
-        executor.start(Messengers.from(getMainLooper()));
+        executor.start(Channels.from(getMainLooper()));
         return executor;
     }
 

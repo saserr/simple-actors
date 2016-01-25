@@ -16,8 +16,8 @@
 
 package android.actor;
 
+import android.actor.channel.Mailbox;
 import android.actor.executor.Executable;
-import android.actor.messenger.Mailbox;
 import android.support.annotation.IntDef;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -107,7 +107,7 @@ public class Reference<M> implements Executable {
                 throw new UnsupportedOperationException(this + " is stopped!");
             }
 
-            success = mMailbox.send(message);
+            success = mMailbox.send(new Mailbox.Message.User<>(message));
         } finally {
             mLock.unlock();
         }
@@ -126,12 +126,9 @@ public class Reference<M> implements Executable {
                     break;
                 case State.STARTED:
                     // TODO don't use isAttached(); Mailbox should check that somehow
-                    if (mMailbox.isAttached()) {
-                        success = mMailbox.send(ControlMessage.STOP);
-                    } else {
-                        final boolean stopped = mMailbox.stop(false);
-                        success = stop(true) && stopped;
-                    }
+                    success = mMailbox.isAttached() ?
+                            mMailbox.send(new Mailbox.Message.Control<M>(Control.STOP)) :
+                            (mMailbox.stop(false) && stop(true));
 
                     if (success && (mState == State.STARTED)) {
                         mState = State.STOPPING;
@@ -152,7 +149,7 @@ public class Reference<M> implements Executable {
     }
 
     @Override
-    public final boolean attach(@NonNull final Messenger.Factory factory) {
+    public final boolean attach(@NonNull final Channel.Factory factory) {
         final boolean success;
 
         mLock.lock();
@@ -170,7 +167,7 @@ public class Reference<M> implements Executable {
         }
 
         if (success && Log.isLoggable(TAG, DEBUG)) {
-            Log.d(TAG, this + " attached to new messenger"); //NON-NLS
+            Log.d(TAG, this + " attached to new channel"); //NON-NLS
         }
 
         return success;
@@ -205,7 +202,7 @@ public class Reference<M> implements Executable {
         }
 
         if (success && Log.isLoggable(TAG, DEBUG)) {
-            Log.d(TAG, this + " detached from the messenger"); //NON-NLS
+            Log.d(TAG, this + " detached from the channel"); //NON-NLS
         }
 
         return success;
@@ -273,7 +270,7 @@ public class Reference<M> implements Executable {
                     throw new UnsupportedOperationException(this + " is stopped!");
                 }
 
-                success = mMailbox.send(ControlMessage.PAUSE);
+                success = mMailbox.send(new Mailbox.Message.Control<M>(Control.PAUSE));
             }
         } finally {
             mLock.unlock();
@@ -295,7 +292,7 @@ public class Reference<M> implements Executable {
                 if (mState == State.INITIALIZED) {
                     success = true;
                 } else {
-                    success = mTask.stop();
+                    success = mTask.stop(true);
                     if (success) {
                         mActor.preStop();
                     }
@@ -329,9 +326,9 @@ public class Reference<M> implements Executable {
     }
 
     @Retention(SOURCE)
-    @IntDef({ControlMessage.PAUSE, ControlMessage.STOP})
+    @IntDef({Control.PAUSE, Control.STOP})
     @VisibleForTesting
-    @interface ControlMessage {
+    @interface Control {
         int PAUSE = 1;
         int STOP = 2;
     }
@@ -346,7 +343,7 @@ public class Reference<M> implements Executable {
     }
 
     @NotThreadSafe
-    private static final class Task<M> implements Messenger.Callback<M> {
+    private static final class Task<M> implements Channel<M> {
 
         @NonNull
         private final Reference<M> mReference;
@@ -366,14 +363,15 @@ public class Reference<M> implements Executable {
         }
 
         public boolean start(@NonNull final Executor executor) {
-            final boolean stopped = stop();
+            final boolean stopped = stop(true);
             if (stopped) {
                 mSubmission = executor.submit(mReference);
             }
             return stopped && (mSubmission != null);
         }
 
-        public boolean stop() {
+        @Override
+        public boolean stop(final boolean immediately) {
             final boolean success = (mSubmission == null) || mSubmission.stop();
             if (success) {
                 mSubmission = null;
@@ -382,32 +380,36 @@ public class Reference<M> implements Executable {
         }
 
         @Override
-        public boolean onMessage(@NonNls final int message) {
-            final boolean processed;
+        public int send(@NonNls final int message) {
+            final int result;
 
             switch (message) {
-                case ControlMessage.PAUSE:
-                    processed = (mSubmission == null) || mSubmission.stop();
+                case Control.PAUSE:
+                    result = ((mSubmission == null) || mSubmission.stop()) ?
+                            Channel.Delivery.SUCCESS :
+                            Channel.Delivery.FAILURE_CAN_RETRY;
                     mSubmission = null;
                     break;
-                case ControlMessage.STOP:
-                    processed = mReference.stop(true);
+                case Control.STOP:
+                    result = mReference.stop(true) ?
+                            Channel.Delivery.SUCCESS :
+                            Channel.Delivery.FAILURE_CAN_RETRY;
                     break;
                 default:
-                    processed = false;
+                    result = Delivery.FAILURE_NO_RETRY;
             }
 
-            if (processed && Log.isLoggable(TAG, DEBUG)) {
+            if ((result == Channel.Delivery.SUCCESS) && Log.isLoggable(TAG, DEBUG)) {
                 Log.d(TAG, mReference + " handled system message " + message); //NON-NLS
             }
 
-            return processed;
+            return result;
         }
 
-        @Messenger.Delivery
+        @Channel.Delivery
         @Override
-        public int onMessage(@NonNls @NonNull final M message) {
-            int result = Messenger.Delivery.SUCCESS;
+        public int send(@NonNls @NonNull final M message) {
+            int result = Channel.Delivery.SUCCESS;
 
             if (mDirectCall.tryAcquire()) {
                 try {
@@ -417,15 +419,15 @@ public class Reference<M> implements Executable {
                     if (!mReference.stop(true)) {
                         Log.e(TAG, mReference + " couldn't be stopped after the failure! Ignoring the failure"); // NON-NLS
                     }
-                    result = Messenger.Delivery.FAILURE_NO_RETRY;
+                    result = Channel.Delivery.FAILURE_NO_RETRY;
                 } finally {
                     mDirectCall.release();
                 }
             } else {
-                result = Messenger.Delivery.FAILURE_CAN_RETRY;
+                result = Channel.Delivery.FAILURE_CAN_RETRY;
             }
 
-            if ((result == Messenger.Delivery.SUCCESS) && Log.isLoggable(TAG, DEBUG)) {
+            if ((result == Channel.Delivery.SUCCESS) && Log.isLoggable(TAG, DEBUG)) {
                 Log.d(TAG, mReference + " handled user message " + message); //NON-NLS
             }
 

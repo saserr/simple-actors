@@ -14,26 +14,26 @@
  * limitations under the License.
  */
 
-package android.actor.messenger;
+package android.actor;
 
-import android.actor.Messenger;
+import android.actor.channel.LooperChannel;
 import android.os.Looper;
 import android.support.annotation.NonNull;
 
-public final class Messengers {
+public final class Channels {
 
     @NonNull
-    public static Messenger.Factory from(@NonNull final Looper looper) {
-        return new Messenger.Factory() {
+    public static Channel.Factory from(@NonNull final Looper looper) {
+        return new Channel.Factory() {
             @NonNull
             @Override
-            public <M> Messenger<M> create(@NonNull final Messenger.Callback<M> callback) {
-                return new LooperMessenger<>(looper, callback);
+            public <M> Channel<M> create(@NonNull final Channel<M> channel) {
+                return new LooperChannel<>(looper, channel);
             }
         };
     }
 
-    private Messengers() {
+    private Channels() {
         super();
     }
 }

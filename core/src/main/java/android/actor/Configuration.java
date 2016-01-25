@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 the original author or authors
+ * Copyright 2016 the original author or authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,14 +14,15 @@
  * limitations under the License.
  */
 
-package android.actor.executor;
+package android.actor;
 
-import android.actor.Channel;
-import android.support.annotation.NonNull;
+import java.util.concurrent.atomic.AtomicInteger;
 
-public interface Executable {
+public final class Configuration {
 
-    boolean attach(@NonNull final Channel.Factory factory);
+    public static final AtomicInteger MaximumNumberOfRetries = new AtomicInteger(3);
 
-    boolean detach();
+    private Configuration() {
+        super();
+    }
 }

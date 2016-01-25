@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package android.actor.messenger;
+package android.actor.channel;
 
 import android.support.annotation.NonNull;
 

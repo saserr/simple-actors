@@ -16,8 +16,8 @@
 
 package android.actor.executor;
 
+import android.actor.Channel;
 import android.actor.Executor;
-import android.actor.Messenger;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.util.Log;
@@ -50,7 +50,7 @@ public class SimpleExecutor implements Executor {
 
     @Nullable
     @GuardedBy("mLock")
-    private Messenger.Factory mFactory;
+    private Channel.Factory mFactory;
     @GuardedBy("mLock")
     private boolean mStopped = false;
 
@@ -84,7 +84,7 @@ public class SimpleExecutor implements Executor {
         return result;
     }
 
-    public final boolean start(@NonNull final Messenger.Factory factory) {
+    public final boolean start(@NonNull final Channel.Factory factory) {
         boolean success = true;
 
         mLock.lock();

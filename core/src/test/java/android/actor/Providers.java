@@ -21,9 +21,39 @@ import android.support.annotation.NonNull;
 import org.jetbrains.annotations.NonNls;
 import org.testng.annotations.DataProvider;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import static java.lang.System.arraycopy;
 
 public final class Providers {
+
+    @NonNull
+    public static Object[][] without(@NonNull final Object[][] values,
+                                     @NonNull final Object[]... excludes) {
+        Object[][] result = values;
+        for (final Object[] excluded : excludes) {
+            result = remove(result, excluded);
+        }
+        return result;
+    }
+
+    @NonNull
+    private static Object[][] remove(@NonNull final Object[][] values,
+                                     @NonNull final Object[] excluded) {
+        final List<Object[]> result = new ArrayList<>(values.length);
+
+        for (final Object[] value : values) {
+            for (int i = 0; i < excluded.length; i++) {
+                if (!((Value<?>) value[i]).value().equals(excluded[i])) {
+                    result.add(value);
+                    break;
+                }
+            }
+        }
+
+        return result.toArray(new Object[result.size()][]);
+    }
 
     @NonNull
     public static <T> Value<T> value(@NonNls @NonNull final String name, @NonNull final T value) {

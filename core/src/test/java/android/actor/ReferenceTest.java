@@ -16,8 +16,8 @@
 
 package android.actor;
 
+import android.actor.channel.Mailbox;
 import android.actor.executor.Executable;
-import android.actor.messenger.Mailbox;
 import android.support.annotation.NonNull;
 
 import org.testng.annotations.AfterMethod;
@@ -32,8 +32,11 @@ import mockit.NonStrictExpectations;
 import mockit.StrictExpectations;
 import mockit.Verifications;
 
-import static android.actor.Reference.ControlMessage.PAUSE;
-import static android.actor.Reference.ControlMessage.STOP;
+import static android.actor.Channel.Delivery.FAILURE_CAN_RETRY;
+import static android.actor.Channel.Delivery.FAILURE_NO_RETRY;
+import static android.actor.Channel.Delivery.SUCCESS;
+import static android.actor.Reference.Control.PAUSE;
+import static android.actor.Reference.Control.STOP;
 import static android.actor.ReferenceMatchers.hasName;
 import static android.actor.ReferenceMatchers.stopped;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -55,11 +58,11 @@ public class ReferenceTest extends TestCase {
     @Injectable
     private Executor mExecutor;
     @Injectable
-    private Messenger.Factory mMessengerFactory;
+    private Channel.Factory mChannelFactory;
 
     private Actor.Name mName;
     private Mailbox<String> mMailbox;
-    private Messenger.Callback<String> mMessengerCallback;
+    private Channel<String> mChannel;
     private Reference<String> mReference;
 
     @BeforeMethod
@@ -71,18 +74,18 @@ public class ReferenceTest extends TestCase {
         }};
 
         mReference = new Reference<>(mContext, mActor, mCallback);
-        mMessengerCallback = Captured.as(Messenger.Callback.class);
+        mChannel = Captured.as(Channel.class);
 
         new Verifications() {{
             mContext.getName();
-            mMailbox = new Mailbox<>(withArgThat(is(Captured.into(mMessengerCallback))));
+            mMailbox = new Mailbox<>(withArgThat(is(Captured.into(mChannel))));
         }};
     }
 
     @AfterMethod
     public final void tearDown() {
         verifyNoMoreInteractions(mAllMailboxes);
-        verifyNoMoreInteractions(mContext, mActor, mCallback, mExecutor, mMessengerFactory);
+        verifyNoMoreInteractions(mContext, mActor, mCallback, mExecutor, mChannelFactory);
     }
 
     @Test(dependsOnGroups = "sanity.reference")
@@ -119,19 +122,19 @@ public class ReferenceTest extends TestCase {
         new StrictExpectations() {{
             mActor.postStart(mContext, mReference);
             mExecutor.submit(mReference);
-            mMailbox.attach(mMessengerFactory);
+            mMailbox.attach(mChannelFactory);
             result = success.value();
         }};
 
         assertThat("reference start", mReference.start(mExecutor), is(true));
-        assertThat("reference attach", mReference.attach(mMessengerFactory), is(success.value()));
+        assertThat("reference attach", mReference.attach(mChannelFactory), is(success.value()));
     }
 
     @Test(dependsOnGroups = "sanity.reference",
             expectedExceptions = UnsupportedOperationException.class,
             expectedExceptionsMessageRegExp = "Actor\\(.*\\) hasn't been started!")
     public final void attachBeforeStart() {
-        mReference.attach(mMessengerFactory);
+        mReference.attach(mChannelFactory);
     }
 
     @Test(groups = {"sanity", "sanity.reference"}, dependsOnMethods = "start",
@@ -142,7 +145,7 @@ public class ReferenceTest extends TestCase {
         new StrictExpectations() {{
             mActor.postStart(mContext, mReference);
             mExecutor.submit(mReference);
-            mMailbox.send(message);
+            mMailbox.send(new Mailbox.Message.User<>(message));
             result = success.value();
         }};
 
@@ -156,7 +159,7 @@ public class ReferenceTest extends TestCase {
         final String message = isA(RandomMessage);
 
         new StrictExpectations() {{
-            mMailbox.send(message);
+            mMailbox.send(new Mailbox.Message.User<>(message));
             result = success.value();
         }};
 
@@ -174,8 +177,7 @@ public class ReferenceTest extends TestCase {
         }};
 
         assertThat("reference start", mReference.start(mExecutor), is(true));
-        final int success = Messenger.Delivery.SUCCESS;
-        assertThat("callback onMessage", mMessengerCallback.onMessage(message), is(success));
+        assertThat("channel send", mChannel.send(message), is(SUCCESS));
     }
 
     @Test(dependsOnGroups = "sanity.reference",
@@ -193,8 +195,8 @@ public class ReferenceTest extends TestCase {
         }};
 
         assertThat("reference start", mReference.start(mExecutor), is(true));
-        final int failure = Messenger.Delivery.FAILURE_NO_RETRY;
-        assertThat("callback onMessage", mMessengerCallback.onMessage(message), is(failure));
+        final int failure = FAILURE_NO_RETRY;
+        assertThat("channel send", mChannel.send(message), is(failure));
     }
 
     @Test(dependsOnGroups = "sanity.reference")
@@ -220,7 +222,7 @@ public class ReferenceTest extends TestCase {
         new StrictExpectations() {{
             mActor.postStart(mContext, mReference);
             mExecutor.submit(mReference);
-            mMailbox.send(PAUSE);
+            mMailbox.send(new Mailbox.Message.Control<String>(PAUSE));
             result = success.value();
         }};
 
@@ -244,7 +246,8 @@ public class ReferenceTest extends TestCase {
         }};
 
         assertThat("reference start", mReference.start(mExecutor), is(true));
-        assertThat("callback onMessage(PAUSE)", mMessengerCallback.onMessage(PAUSE), is(success.value()));
+        final int delivery = success.value() ? SUCCESS : FAILURE_CAN_RETRY;
+        assertThat("channel send(PAUSE)", mChannel.send(PAUSE), is(delivery));
     }
 
     @Test(dependsOnGroups = "sanity.reference", dependsOnMethods = "pause")
@@ -257,8 +260,8 @@ public class ReferenceTest extends TestCase {
         }};
 
         assertThat("reference start", mReference.start(mExecutor), is(true));
-        assertThat("callback onMessage", mMessengerCallback.onMessage(PAUSE), is(true));
-        assertThat("callback onMessage", mMessengerCallback.onMessage(PAUSE), is(true));
+        assertThat("channel send(PAUSE)", mChannel.send(PAUSE), is(SUCCESS));
+        assertThat("channel send(PAUSE)", mChannel.send(PAUSE), is(SUCCESS));
     }
 
     @Test(dependsOnGroups = "sanity.reference", dependsOnMethods = "pause")
@@ -266,7 +269,7 @@ public class ReferenceTest extends TestCase {
         new StrictExpectations() {{
             mActor.postStart(mContext, mReference);
             final Executor.Submission submission = mExecutor.submit(mReference);
-            mMailbox.send(PAUSE);
+            mMailbox.send(new Mailbox.Message.Control<String>(PAUSE));
             result = true;
             notNull(submission).stop();
             result = true;
@@ -286,7 +289,7 @@ public class ReferenceTest extends TestCase {
             mExecutor.submit(mReference);
             mMailbox.isAttached();
             result = true;
-            mMailbox.send(STOP);
+            mMailbox.send(new Mailbox.Message.Control<String>(STOP));
             result = success.value();
         }};
 
@@ -355,7 +358,8 @@ public class ReferenceTest extends TestCase {
         }};
 
         assertThat("reference start", mReference.start(mExecutor), is(true));
-        assertThat("callback onMessage(STOP)", mMessengerCallback.onMessage(STOP), is(success.value()));
+        final int delivery = success.value() ? SUCCESS : FAILURE_CAN_RETRY;
+        assertThat("channel send(STOP)", mChannel.send(STOP), is(delivery));
     }
 
     @Test(dependsOnGroups = "sanity.reference",
@@ -367,7 +371,7 @@ public class ReferenceTest extends TestCase {
             mExecutor.submit(mReference);
             mMailbox.isAttached();
             result = true;
-            mMailbox.send(STOP);
+            mMailbox.send(new Mailbox.Message.Control<String>(STOP));
             result = true;
         }};
 
@@ -397,13 +401,13 @@ public class ReferenceTest extends TestCase {
             mExecutor.submit(mReference);
             mMailbox.isAttached();
             result = true;
-            mMailbox.send(STOP);
+            mMailbox.send(new Mailbox.Message.Control<String>(STOP));
             result = true;
         }};
 
         assertThat("reference start", mReference.start(mExecutor), is(true));
         assertThat("reference stop", mReference.stop(), is(true));
-        mReference.attach(mMessengerFactory);
+        mReference.attach(mChannelFactory);
     }
 
     @Test(dependsOnGroups = "sanity.reference", dependsOnMethods = "stopBeforeStart",
@@ -415,7 +419,7 @@ public class ReferenceTest extends TestCase {
         }};
 
         assertThat("reference stop", mReference.stop(), is(true));
-        mReference.attach(mMessengerFactory);
+        mReference.attach(mChannelFactory);
     }
 
     @Test(dependsOnGroups = "sanity.reference",
@@ -427,7 +431,7 @@ public class ReferenceTest extends TestCase {
             mExecutor.submit(mReference);
             mMailbox.isAttached();
             result = true;
-            mMailbox.send(STOP);
+            mMailbox.send(new Mailbox.Message.Control<String>(STOP));
             result = true;
         }};
 
@@ -466,7 +470,7 @@ public class ReferenceTest extends TestCase {
             mExecutor.submit(mReference);
             mMailbox.isAttached();
             result = true;
-            mMailbox.send(STOP);
+            mMailbox.send(new Mailbox.Message.Control<String>(STOP));
             result = true;
             mMailbox.stop(true);
             result = success.value();
@@ -555,33 +559,32 @@ public class ReferenceTest extends TestCase {
         }};
 
         assertThat("reference start", mReference.start(mExecutor), is(true));
-        assertThat("callback onMessage(unknown)", mMessengerCallback.onMessage(0), is(false));
+        assertThat("channel send(unknown)", mChannel.send(0), is(FAILURE_NO_RETRY));
     }
 
     @Test(groups = {"sanity", "sanity.reference"}, dependsOnMethods = "receiveMessage")
     public final void noDirectCallCycles() {
         final String message = isA(RandomMessage);
-        final Messenger.Callback<String> callback = Captured.as(Messenger.Callback.class);
+        final Channel<String> channel = Captured.as(Channel.class);
         final Actor<String> actor = new Actor<String>() {
             @Override
             protected void onMessage(@NonNull final String value) {
-                final int failure = Messenger.Delivery.FAILURE_CAN_RETRY;
-                assertThat("callback onMessage", callback.onMessage(message), is(failure));
+                final int failure = FAILURE_CAN_RETRY;
+                assertThat("channel send", channel.send(message), is(failure));
             }
         };
 
         new StrictExpectations() {{
             mContext.getName();
             result = mName;
-            new Mailbox<>(withArgThat(is(Captured.into(callback))));
+            new Mailbox<>(withArgThat(is(Captured.into(channel))));
             mExecutor.submit((Executable) any);
         }};
 
         final Reference<String> reference = new Reference<>(mContext, actor, mCallback);
         assertThat("reference start", reference.start(mExecutor), is(true));
-        final int success = Messenger.Delivery.SUCCESS;
-        assertThat("callback onMessage", callback.onMessage(message), is(success));
-        assertThat("callback onMessage", callback.onMessage(message), is(success));
+        assertThat("channel send", channel.send(message), is(SUCCESS));
+        assertThat("channel send", channel.send(message), is(SUCCESS));
     }
 
     private static final RandomDataGenerator<String> RandomName = RandomString;

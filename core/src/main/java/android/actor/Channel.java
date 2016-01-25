@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 the original author or authors
+ * Copyright 2016 the original author or authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,11 +23,13 @@ import java.lang.annotation.Retention;
 
 import static java.lang.annotation.RetentionPolicy.SOURCE;
 
-public interface Messenger<M> {
+public interface Channel<M> {
 
-    boolean send(final int message);
+    @Delivery
+    int send(final int message);
 
-    boolean send(@NonNull final M message);
+    @Delivery
+    int send(@NonNull final M message);
 
     boolean stop(final boolean immediately);
 
@@ -39,16 +41,8 @@ public interface Messenger<M> {
         int FAILURE_NO_RETRY = 3;
     }
 
-    interface Callback<M> {
-
-        boolean onMessage(final int message);
-
-        @Delivery
-        int onMessage(@NonNull final M message);
-    }
-
     interface Factory {
         @NonNull
-        <M> Messenger<M> create(@NonNull final Callback<M> callback);
+        <M> Channel<M> create(@NonNull final Channel<M> channel);
     }
 }

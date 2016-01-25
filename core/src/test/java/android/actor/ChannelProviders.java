@@ -14,29 +14,35 @@
  * limitations under the License.
  */
 
-package android.actor.messenger;
+package android.actor;
 
-import android.actor.Messenger;
 import android.support.annotation.NonNull;
 
 import org.testng.annotations.DataProvider;
 
+import static android.actor.Providers.booleans;
 import static android.actor.Providers.provider;
 import static android.actor.Providers.value;
 
-public final class MessengerProviders {
+public final class ChannelProviders {
 
     @NonNull
     @DataProvider(name = "delivery")
     public static Object[][] delivery() {
         return provider(
-                value("success", Messenger.Delivery.SUCCESS),
-                value("failure can retry", Messenger.Delivery.FAILURE_CAN_RETRY),
-                value("failure no retry", Messenger.Delivery.FAILURE_NO_RETRY)
+                value("success", Channel.Delivery.SUCCESS),
+                value("failure can retry", Channel.Delivery.FAILURE_CAN_RETRY),
+                value("failure no retry", Channel.Delivery.FAILURE_NO_RETRY)
         );
     }
 
-    private MessengerProviders() {
+    @NonNull
+    @DataProvider(name = "retries")
+    public static Object[][] retries() {
+        return booleans("no retries", "with retries");
+    }
+
+    private ChannelProviders() {
         super();
     }
 }

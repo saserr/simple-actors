@@ -16,8 +16,8 @@
 
 package android.actor.executor;
 
+import android.actor.Channels;
 import android.actor.Executor;
-import android.actor.messenger.Messengers;
 import android.os.Looper;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -87,7 +87,7 @@ public class Dispatcher {
                 throw new IllegalStateException("No looper associated with this thread");
             }
 
-            if (mLooper.compareAndSet(null, current) && mExecutor.start(Messengers.from(current))) {
+            if (mLooper.compareAndSet(null, current) && mExecutor.start(Channels.from(current))) {
                 try {
                     Looper.loop();
                 } finally {
