@@ -17,6 +17,7 @@
 package android.actor.channel;
 
 import android.actor.Channel;
+import android.actor.ChannelProviders;
 import android.actor.Providers;
 import android.actor.TestCase;
 import android.support.annotation.NonNull;
@@ -27,12 +28,10 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import mockit.Injectable;
+import mockit.Mocked;
 import mockit.StrictExpectations;
 
-import static android.actor.Channel.Delivery.FAILURE_CAN_RETRY;
-import static android.actor.Channel.Delivery.FAILURE_NO_RETRY;
 import static android.actor.Channel.Delivery.SUCCESS;
-import static android.actor.ChannelProviders.retries;
 import static android.actor.Providers.booleans;
 import static android.actor.Providers.cartesian;
 import static android.actor.Providers.successOrFailure;
@@ -43,13 +42,18 @@ import static org.hamcrest.Matchers.not;
 
 public class MailboxTest extends TestCase {
 
+    @Mocked
+    private Send<?> mAllSends;
+
     @Injectable
-    private Channel<String> mDestination;
+    private Message mMessage;
+    @Injectable
+    private Channel<Message> mDestination;
     @Injectable
     private Channel.Factory mChannelFactory;
 
-    private Channel<String> mChannel;
-    private Mailbox<String> mMailbox;
+    private Channel<Message> mChannel;
+    private Mailbox<Message> mMailbox;
 
     @BeforeMethod
     public final void setUp() {
@@ -58,15 +62,17 @@ public class MailboxTest extends TestCase {
 
     @AfterMethod
     public final void tearDown() {
-        verifyNoMoreInteractions(mDestination, mChannelFactory);
+        verifyNoMoreInteractions(mAllSends);
+        verifyNoMoreInteractions(mMessage, mDestination, mChannelFactory);
     }
 
-    @Test(groups = {"sanity", "sanity.mailbox"})
+    @Test(groups = {"sanity", "sanity.channel", "sanity.channel.mailbox"})
     public final void newlyCreatedMailboxIsUnattached() {
         assertThat("mailbox", mMailbox, is(not(attached())));
     }
 
-    @Test(groups = {"sanity", "sanity.mailbox"}, dependsOnMethods = "attach")
+    @Test(groups = {"sanity", "sanity.channel", "sanity.channel.mailbox"},
+            dependsOnMethods = "attach")
     public final void isAttachedAfterAttach() {
         new StrictExpectations() {{
             mChannelFactory.create(mDestination);
@@ -76,7 +82,8 @@ public class MailboxTest extends TestCase {
         assertThat("mailbox", mMailbox, is(attached()));
     }
 
-    @Test(groups = {"sanity", "sanity.mailbox"}, dependsOnMethods = "attach")
+    @Test(groups = {"sanity", "sanity.channel", "sanity.channel.mailbox"},
+            dependsOnMethods = "attach")
     public final void isAttachedAfterDetach() {
         new StrictExpectations() {{
             mChannelFactory.create(mDestination);
@@ -87,7 +94,7 @@ public class MailboxTest extends TestCase {
         assertThat("mailbox", mMailbox, is(not(attached())));
     }
 
-    @Test(groups = {"sanity", "sanity.mailbox"})
+    @Test(groups = {"sanity", "sanity.channel", "sanity.channel.mailbox"})
     public final void attach() {
         new StrictExpectations() {{
             mChannelFactory.create(mDestination);
@@ -96,38 +103,27 @@ public class MailboxTest extends TestCase {
         assertThat("mailbox attach", mMailbox.attach(mChannelFactory), is(true));
     }
 
-    @Test(dependsOnGroups = "sanity.mailbox",
+    @Test(dependsOnGroups = "sanity.channel.mailbox",
             dependsOnMethods = "sendUserMessageWhenUnattached",
-            dataProvider = "(retries, success)")
-    public final void attachEmptiesMailbox(final Providers.Boolean retries,
-                                           final Providers.Boolean success) {
-        final String message = isA(RandomUserMessage);
-
+            dataProvider = "success or failure", dataProviderClass = Providers.class)
+    public final void attachEmptiesMailbox(final Providers.Boolean success) {
         new StrictExpectations() {{
+            mMessage.isControl();
+            result = false;
             mChannel = mChannelFactory.create(mDestination);
+            Send.withRetries(mChannel, mMessage);
+            result = success.value();
         }};
 
-        if (retries.value()) {
-            new StrictExpectations() {{
-                mChannel.send(message);
-                result = FAILURE_CAN_RETRY;
-            }};
-        }
-
-        new StrictExpectations() {{
-            mChannel.send(message);
-            result = success.value() ? SUCCESS : FAILURE_NO_RETRY;
-        }};
-
-        assertThat("message send", mMailbox.send(new Mailbox.Message.User<>(message)), is(true));
+        assertThat("message send", mMailbox.send(mMessage), is(SUCCESS));
         assertThat("mailbox attach", mMailbox.attach(mChannelFactory), is(success.value()));
     }
 
-    @Test(dependsOnGroups = "sanity.mailbox",
+    @Test(dependsOnGroups = "sanity.channel.mailbox",
             dataProvider = "success or failure", dataProviderClass = Providers.class)
     public final void reattach(final Providers.Boolean success) {
         new StrictExpectations() {{
-            final Channel<String> channel = mChannelFactory.create(mDestination);
+            final Channel<Message> channel = mChannelFactory.create(mDestination);
             channel.stop(false);
             result = success.value();
         }};
@@ -142,117 +138,93 @@ public class MailboxTest extends TestCase {
         assertThat("mailbox reattach", mMailbox.attach(mChannelFactory), is(success.value()));
     }
 
-    @Test(groups = {"sanity", "sanity.mailbox"}, dataProvider = "(retries, success)")
-    public final void sendControlMessageWhenEmptyAndUnattached(final Providers.Boolean retries,
-                                                               final Providers.Boolean success) {
-        final int message = isA(RandomControlMessage);
-
-        if (retries.value()) {
-            new StrictExpectations() {{
-                mDestination.send(message);
-                result = FAILURE_CAN_RETRY;
-            }};
-        }
-
+    @Test(groups = {"sanity", "sanity.channel", "sanity.channel.mailbox"},
+            dataProvider = "delivery", dataProviderClass = ChannelProviders.class)
+    public final void sendControlMessageWhenEmptyAndUnattached(final Providers.Value<Integer> delivery) {
         new StrictExpectations() {{
-            mDestination.send(message);
-            result = success.value() ? SUCCESS : FAILURE_NO_RETRY;
+            mMessage.isControl();
+            result = true;
+            mDestination.send(mMessage);
+            result = delivery.value();
         }};
 
-        final Mailbox.Message.Control<String> control = new Mailbox.Message.Control<>(message);
-        assertThat("message send", mMailbox.send(control), is(success.value()));
+        assertThat("message send", mMailbox.send(mMessage), is(delivery.value()));
     }
 
-    @Test(groups = {"sanity", "sanity.mailbox"},
+    @Test(groups = {"sanity", "sanity.channel", "sanity.channel.mailbox"},
             dependsOnMethods = "sendUserMessageWhenUnattached")
     public final void sendControlMessageWhenNotEmptyAndUnattached() {
-        final String user = isA(RandomUserMessage);
-        final int control = isA(RandomControlMessage);
-
-        assertThat("message send", mMailbox.send(new Mailbox.Message.User<>(user)), is(true));
-        assertThat("message send", mMailbox.send(new Mailbox.Message.Control<String>(control)), is(true));
-    }
-
-    @Test(groups = {"sanity", "sanity.mailbox"}, dependsOnMethods = "attach",
-            dataProvider = "(retries, success)")
-    public final void sendControlMessageWhenAttached(final Providers.Boolean retries,
-                                                     final Providers.Boolean success) {
-        final int message = isA(RandomControlMessage);
-
         new StrictExpectations() {{
-            mChannel = mChannelFactory.create(mDestination);
+            mMessage.isControl();
+            result = new boolean[]{false, true};
         }};
 
-        if (retries.value()) {
-            new StrictExpectations() {{
-                mChannel.send(message);
-                result = FAILURE_CAN_RETRY;
-            }};
-        }
+        assertThat("message send", mMailbox.send(mMessage), is(SUCCESS));
+        assertThat("message send", mMailbox.send(mMessage), is(SUCCESS));
+    }
 
+    @Test(groups = {"sanity", "sanity.channel", "sanity.channel.mailbox"},
+            dependsOnMethods = "attach",
+            dataProvider = "delivery", dataProviderClass = ChannelProviders.class)
+    public final void sendControlMessageWhenAttached(final Providers.Value<Integer> delivery) {
         new StrictExpectations() {{
-            mChannel.send(message);
-            result = success.value() ? SUCCESS : FAILURE_NO_RETRY;
+            mChannel = mChannelFactory.create(mDestination);
+            mChannel.send(mMessage);
+            result = delivery.value();
         }};
 
         assertThat("mailbox attach", mMailbox.attach(mChannelFactory), is(true));
-        final Mailbox.Message.Control<String> control = new Mailbox.Message.Control<>(message);
-        assertThat("mailbox send", mMailbox.send(control), is(success.value()));
+        assertThat("mailbox send", mMailbox.send(mMessage), is(delivery.value()));
     }
 
-    @Test(groups = {"sanity", "sanity.mailbox"})
+    @Test(groups = {"sanity", "sanity.channel", "sanity.channel.mailbox"})
     public final void sendUserMessageWhenUnattached() {
-        assertThat("mailbox send", mMailbox.send(new Mailbox.Message.User<>(a(RandomUserMessage))), is(true));
-    }
-
-    @Test(groups = {"sanity", "sanity.mailbox"}, dependsOnMethods = "attach",
-            dataProvider = "(retries, success)")
-    public final void sendUserMessageWhenAttached(final Providers.Boolean retries,
-                                                  final Providers.Boolean success) {
-        final String message = isA(RandomUserMessage);
-
         new StrictExpectations() {{
-            mChannel = mChannelFactory.create(mDestination);
+            mMessage.isControl();
+            result = false;
         }};
 
-        if (retries.value()) {
-            new StrictExpectations() {{
-                mChannel.send(message);
-                result = FAILURE_CAN_RETRY;
-            }};
-        }
+        assertThat("mailbox send", mMailbox.send(mMessage), is(SUCCESS));
+    }
 
+    @Test(groups = {"sanity", "sanity.channel", "sanity.channel.mailbox"},
+            dependsOnMethods = "attach",
+            dataProvider = "delivery", dataProviderClass = ChannelProviders.class)
+    public final void sendUserMessageWhenAttached(final Providers.Value<Integer> delivery) {
         new StrictExpectations() {{
-            mChannel.send(message);
-            result = success.value() ? SUCCESS : FAILURE_NO_RETRY;
+            mChannel = mChannelFactory.create(mDestination);
+            mChannel.send(mMessage);
+            result = delivery.value();
         }};
 
         assertThat("mailbox attach", mMailbox.attach(mChannelFactory), is(true));
-        final Mailbox.Message.User<String> user = new Mailbox.Message.User<>(message);
-        assertThat("mailbox send", mMailbox.send(user), is(success.value()));
+        assertThat("mailbox send", mMailbox.send(mMessage), is(delivery.value()));
     }
 
-    @Test(dependsOnGroups = "sanity.mailbox", dependsOnMethods = "sendUserMessageWhenUnattached",
+    @Test(dependsOnGroups = "sanity.channel.mailbox", dependsOnMethods = "sendUserMessageWhenUnattached",
             dataProvider = "immediateness")
     public final void stopWhenUnattached(final Providers.Boolean immediately) {
-        final String message = isA(RandomUserMessage);
+        new StrictExpectations() {{
+            mMessage.isControl();
+            result = false;
+        }};
 
         if (!immediately.value()) {
             new StrictExpectations() {{
-                mDestination.send(message);
+                Send.withRetries(mDestination, mMessage, 1);
             }};
         }
 
-        assertThat("mailbox send", mMailbox.send(new Mailbox.Message.User<>(message)), is(true));
+        assertThat("mailbox send", mMailbox.send(mMessage), is(SUCCESS));
         assertThat("mailbox stop", mMailbox.stop(immediately.value()), is(true));
     }
 
-    @Test(dependsOnGroups = "sanity.mailbox", dependsOnMethods = "attach",
+    @Test(dependsOnGroups = "sanity.channel.mailbox", dependsOnMethods = "attach",
             dataProvider = "(success, immediateness)")
     public final void stopWhenAttached(final Providers.Boolean success,
                                        final Providers.Boolean immediately) {
         new StrictExpectations() {{
-            final Channel<String> channel = mChannelFactory.create(mDestination);
+            final Channel<Message> channel = mChannelFactory.create(mDestination);
             channel.stop(immediately.value());
             result = success.value();
         }};
@@ -260,15 +232,6 @@ public class MailboxTest extends TestCase {
         assertThat("mailbox attach", mMailbox.attach(mChannelFactory), is(true));
         assertThat("mailbox stop", mMailbox.stop(immediately.value()), is(success.value()));
         assertThat("mailbox", mMailbox, is(success.value() ? not(attached()) : attached()));
-    }
-
-    private static final RandomDataGenerator<Integer> RandomControlMessage = RandomInteger;
-    private static final RandomDataGenerator<String> RandomUserMessage = RandomString;
-
-    @NonNull
-    @DataProvider(name = "(retries, success)")
-    private static Object[][] retriesAndSuccess() {
-        return cartesian(retries(), successOrFailure());
     }
 
     @NonNull

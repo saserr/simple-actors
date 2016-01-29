@@ -18,12 +18,14 @@ package android.actor;
 
 import android.os.SystemClock;
 
+import org.hamcrest.Matchers;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.regex.Matcher;
 
 import mockit.Injectable;
 import mockit.Mocked;
@@ -31,6 +33,7 @@ import mockit.StrictExpectations;
 
 import static android.actor.Scheduler.delay;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 public class SchedulerTest extends TestCase {
@@ -110,6 +113,6 @@ public class SchedulerTest extends TestCase {
         mScheduler.preStop();
     }
 
-    private static final RandomDataGenerator<Long> RandomDelay = RandomLong.thatIs(Positive);
+    private static final RandomDataGenerator<Long> RandomDelay = RandomLong.thatIs(greaterThan(0L));
     private static final RandomDataGenerator<String> RandomMessage = RandomString;
 }

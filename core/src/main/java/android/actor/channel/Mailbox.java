@@ -17,30 +17,21 @@
 package android.actor.channel;
 
 import android.actor.Channel;
-import android.actor.Configuration;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-import android.util.Log;
 
 import net.jcip.annotations.NotThreadSafe;
-import net.jcip.annotations.ThreadSafe;
-
-import org.jetbrains.annotations.NonNls;
 
 import java.util.LinkedList;
 import java.util.Queue;
 
-import static android.util.Log.DEBUG;
-
 @NotThreadSafe
-public class Mailbox<M> {
-
-    private static final String TAG = Mailbox.class.getSimpleName();
+public class Mailbox<M extends Message> implements Channel<M> {
 
     @NonNull
     private final Channel<M> mDestination;
 
-    private final Queue<Message<M>> mMessages = new LinkedList<>();
+    private final Queue<M> mMessages = new LinkedList<>();
 
     @Nullable
     private Channel<M> mCarrier;
@@ -49,6 +40,16 @@ public class Mailbox<M> {
         super();
 
         mDestination = destination;
+    }
+
+    @Override
+    @Channel.Delivery
+    public final int send(@NonNull final M message) {
+        return (mCarrier == null) ?
+                ((message.isControl() && mMessages.isEmpty()) ?
+                        mDestination.send(message) :
+                        sendLater(message)) :
+                mCarrier.send(message);
     }
 
     public final boolean isAttached() {
@@ -61,7 +62,7 @@ public class Mailbox<M> {
         if (success) {
             mCarrier = factory.create(mDestination);
             while (success && !mMessages.isEmpty()) {
-                if (!mMessages.poll().sendTo(mCarrier)) {
+                if (!Send.withRetries(mCarrier, mMessages.poll())) {
                     success = false;
                     mCarrier = null;
                 }
@@ -75,18 +76,7 @@ public class Mailbox<M> {
         mCarrier = null;
     }
 
-    public boolean send(@NonNull final Message.Control<M> message) {
-        return (mCarrier == null) ?
-                (mMessages.isEmpty() ? message.sendTo(mDestination) : sendLater(message)) :
-                message.sendTo(mCarrier);
-    }
-
-    public boolean send(@NonNull final Message.User<M> message) {
-        return (mCarrier == null) ?
-                sendLater(message) :
-                message.sendTo(mCarrier);
-    }
-
+    @Override
     public final boolean stop(final boolean immediately) {
         final boolean success = (mCarrier == null) || mCarrier.stop(immediately);
 
@@ -96,8 +86,7 @@ public class Mailbox<M> {
                 mMessages.clear();
             } else {
                 while (!mMessages.isEmpty()) {
-                    final Message<M> message = mMessages.poll();
-                    message.log(message.sendOnceTo(mDestination));
+                    Send.withRetries(mDestination, mMessages.poll(), 1);
                 }
             }
         }
@@ -105,138 +94,10 @@ public class Mailbox<M> {
         return success;
     }
 
-    private boolean sendLater(@NonNull final Message<M> message) {
-        return mMessages.offer(message);
-    }
-
-    @ThreadSafe
-    public abstract static class Message<M> {
-
-        @Channel.Delivery
-        protected abstract int sendOnceTo(@NonNull final Channel<M> channel);
-
-        public boolean sendTo(@NonNull final Channel<M> channel) {
-            int delivery;
-
-            int triesLeft = Configuration.MaximumNumberOfRetries.get();
-            do {
-                delivery = sendOnceTo(channel);
-                triesLeft--;
-                log(delivery, triesLeft);
-            } while ((delivery == Channel.Delivery.FAILURE_CAN_RETRY) && (triesLeft > 0));
-
-            return delivery == Channel.Delivery.SUCCESS;
-        }
-
-        @NonNls
-        @NonNull
-        @Override
-        public abstract String toString();
-
-        private void log(@Channel.Delivery final int delivery) {
-            log(delivery, 0);
-        }
-
-        private void log(@Channel.Delivery final int delivery,
-                         final int triesLeft) {
-            if (delivery == Channel.Delivery.FAILURE_CAN_RETRY) {
-                if (triesLeft > 0) {
-                    Log.w(TAG, "Failed to deliver " + this + "! Retrying"); //NON-NLS
-                } else {
-                    Log.e(TAG, "Failed to deliver " + this + "! No retries left"); //NON-NLS
-                }
-            } else if (delivery == Channel.Delivery.SUCCESS) {
-                if (Log.isLoggable(TAG, DEBUG)) {
-                    Log.d(TAG, "Successfully delivered " + this); //NON-NLS
-                }
-            } else {
-                Log.e(TAG, "Failed to deliver " + this + "! Cannot retry"); //NON-NLS
-            }
-        }
-
-        @ThreadSafe
-        public static final class Control<M> extends Message<M> {
-
-            private final int mMessage;
-
-            public Control(final int message) {
-                super();
-
-                mMessage = message;
-            }
-
-            @Channel.Delivery
-            @Override
-            protected int sendOnceTo(@NonNull final Channel<M> channel) {
-                return channel.send(mMessage);
-            }
-
-            @Override
-            public int hashCode() {
-                return mMessage;
-            }
-
-            @Override
-            public boolean equals(@Nullable final Object object) {
-                boolean result = this == object;
-
-                if (!result && (object instanceof Control)) {
-                    final Control<?> other = (Control<?>) object;
-                    result = mMessage == other.mMessage;
-                }
-
-                return result;
-            }
-
-            @NonNls
-            @NonNull
-            @Override
-            public String toString() {
-                return "Message(type=Control, data=" + mMessage + ')';
-            }
-        }
-
-        @ThreadSafe
-        public static final class User<M> extends Message<M> {
-
-            @NonNull
-            private final M mMessage;
-
-            public User(@NonNull final M message) {
-                super();
-
-                mMessage = message;
-            }
-
-            @Channel.Delivery
-            @Override
-            protected int sendOnceTo(@NonNull final Channel<M> channel) {
-                return channel.send(mMessage);
-            }
-
-            @Override
-            public int hashCode() {
-                return mMessage.hashCode();
-            }
-
-            @Override
-            public boolean equals(@Nullable final Object object) {
-                boolean result = this == object;
-
-                if (!result && (object instanceof User)) {
-                    final User<?> other = (User<?>) object;
-                    result = mMessage == other.mMessage;
-                }
-
-                return result;
-            }
-
-            @NonNls
-            @NonNull
-            @Override
-            public String toString() {
-                return "Message(type=User, data=" + mMessage + ')';
-            }
-        }
+    @Delivery
+    private int sendLater(@NonNull final M message) {
+        return mMessages.offer(message) ?
+                Channel.Delivery.SUCCESS :
+                Channel.Delivery.FAILURE_CAN_RETRY;
     }
 }

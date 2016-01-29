@@ -20,12 +20,11 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.util.Log;
 
+import org.hamcrest.Matcher;
 import org.testng.annotations.AfterMethod;
 
 import java.security.SecureRandom;
-import java.util.HashSet;
 import java.util.Random;
-import java.util.Set;
 
 import mockit.FullVerifications;
 import mockit.Mocked;
@@ -84,8 +83,8 @@ public abstract class TestCase {
         @NonNull
         public abstract V next(@NonNull final Random random);
 
-        public final RandomDataGenerator<V> thatIs(@NonNull final Filter<? super V> filter) {
-            return new Filtered<>(this, filter);
+        public final RandomDataGenerator<V> thatIs(@NonNull final Matcher<? super V> matcher) {
+            return new Filtered<>(this, matcher);
         }
 
         private static final class Filtered<V> extends RandomDataGenerator<V> {
@@ -93,14 +92,14 @@ public abstract class TestCase {
             @NonNull
             private final RandomDataGenerator<V> mOriginal;
             @NonNull
-            private final Filter<? super V> mFilter;
+            private final Matcher<? super V> mMatcher;
 
             private Filtered(@NonNull final RandomDataGenerator<V> original,
-                             @NonNull final Filter<? super V> filter) {
+                             @NonNull final Matcher<? super V> matcher) {
                 super();
 
                 mOriginal = original;
-                mFilter = filter;
+                mMatcher = matcher;
             }
 
             @NonNull
@@ -109,7 +108,7 @@ public abstract class TestCase {
                 V result;
                 do {
                     result = mOriginal.next(random);
-                } while (!mFilter.isValid(result));
+                } while (!mMatcher.matches(result));
                 return result;
             }
         }
@@ -141,46 +140,5 @@ public abstract class TestCase {
                     return Long.toHexString(random.nextLong());
                 }
             };
-
-    protected interface Filter<V> {
-        boolean isValid(@NonNull final V v);
-    }
-
-    protected static final Filter<Number> Positive = new Filter<Number>() {
-        @Override
-        public boolean isValid(@NonNull final Number number) {
-            return number.longValue() > 0;
-        }
-    };
-
-    protected static final Filter<Number> NonPositive = new Filter<Number>() {
-        @Override
-        public boolean isValid(@NonNull final Number number) {
-            return number.longValue() <= 0;
-        }
-    };
-
-    protected static Filter<Number> differentFrom(@NonNull final Number... numbers) {
-        return new DifferentFrom(numbers);
-    }
-
-    private static final class DifferentFrom implements Filter<Number> {
-
-        private final Set<Long> mNumbers;
-
-        private DifferentFrom(@NonNull final Number... numbers) {
-            super();
-
-            mNumbers = new HashSet<>(numbers.length);
-            for (final Number number : numbers) {
-                mNumbers.add(number.longValue());
-            }
-        }
-
-        @Override
-        public boolean isValid(@NonNull final Number number) {
-            return !mNumbers.contains(number.longValue());
-        }
-    }
 }
 

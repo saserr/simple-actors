@@ -26,9 +26,6 @@ import static java.lang.annotation.RetentionPolicy.SOURCE;
 public interface Channel<M> {
 
     @Delivery
-    int send(final int message);
-
-    @Delivery
     int send(@NonNull final M message);
 
     boolean stop(final boolean immediately);

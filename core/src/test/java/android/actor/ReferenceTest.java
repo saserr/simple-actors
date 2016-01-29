@@ -17,6 +17,7 @@
 package android.actor;
 
 import android.actor.channel.Mailbox;
+import android.actor.channel.Send;
 import android.actor.executor.Executable;
 import android.support.annotation.NonNull;
 
@@ -35,8 +36,6 @@ import mockit.Verifications;
 import static android.actor.Channel.Delivery.FAILURE_CAN_RETRY;
 import static android.actor.Channel.Delivery.FAILURE_NO_RETRY;
 import static android.actor.Channel.Delivery.SUCCESS;
-import static android.actor.Reference.Control.PAUSE;
-import static android.actor.Reference.Control.STOP;
 import static android.actor.ReferenceMatchers.hasName;
 import static android.actor.ReferenceMatchers.stopped;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -47,7 +46,9 @@ import static org.hamcrest.Matchers.not;
 public class ReferenceTest extends TestCase {
 
     @Mocked
-    private Mailbox<String> mAllMailboxes;
+    private Mailbox<Reference.Message<String>> mAllMailboxes;
+    @Mocked
+    private Send<?> mAllSends;
 
     @Injectable
     private Context mContext;
@@ -61,8 +62,8 @@ public class ReferenceTest extends TestCase {
     private Channel.Factory mChannelFactory;
 
     private Actor.Name mName;
-    private Mailbox<String> mMailbox;
-    private Channel<String> mChannel;
+    private Mailbox<Reference.Message<String>> mMailbox;
+    private Channel<Reference.Message<String>> mChannel;
     private Reference<String> mReference;
 
     @BeforeMethod
@@ -84,7 +85,7 @@ public class ReferenceTest extends TestCase {
 
     @AfterMethod
     public final void tearDown() {
-        verifyNoMoreInteractions(mAllMailboxes);
+        verifyNoMoreInteractions(mAllMailboxes, mAllSends);
         verifyNoMoreInteractions(mContext, mActor, mCallback, mExecutor, mChannelFactory);
     }
 
@@ -145,7 +146,7 @@ public class ReferenceTest extends TestCase {
         new StrictExpectations() {{
             mActor.postStart(mContext, mReference);
             mExecutor.submit(mReference);
-            mMailbox.send(new Mailbox.Message.User<>(message));
+            Send.withRetries(mMailbox, new Reference.Message.User<>(message));
             result = success.value();
         }};
 
@@ -159,7 +160,7 @@ public class ReferenceTest extends TestCase {
         final String message = isA(RandomMessage);
 
         new StrictExpectations() {{
-            mMailbox.send(new Mailbox.Message.User<>(message));
+            Send.withRetries(mMailbox, new Reference.Message.User<>(message));
             result = success.value();
         }};
 
@@ -177,7 +178,7 @@ public class ReferenceTest extends TestCase {
         }};
 
         assertThat("reference start", mReference.start(mExecutor), is(true));
-        assertThat("channel send", mChannel.send(message), is(SUCCESS));
+        assertThat("channel send", mChannel.send(new Reference.Message.User<>(message)), is(SUCCESS));
     }
 
     @Test(dependsOnGroups = "sanity.reference",
@@ -196,7 +197,7 @@ public class ReferenceTest extends TestCase {
 
         assertThat("reference start", mReference.start(mExecutor), is(true));
         final int failure = FAILURE_NO_RETRY;
-        assertThat("channel send", mChannel.send(message), is(failure));
+        assertThat("channel send", mChannel.send(new Reference.Message.User<>(message)), is(failure));
     }
 
     @Test(dependsOnGroups = "sanity.reference")
@@ -222,7 +223,7 @@ public class ReferenceTest extends TestCase {
         new StrictExpectations() {{
             mActor.postStart(mContext, mReference);
             mExecutor.submit(mReference);
-            mMailbox.send(new Mailbox.Message.Control<String>(PAUSE));
+            Send.withRetries(mMailbox, Reference.Message.Control.<String>pause());
             result = success.value();
         }};
 
@@ -247,7 +248,7 @@ public class ReferenceTest extends TestCase {
 
         assertThat("reference start", mReference.start(mExecutor), is(true));
         final int delivery = success.value() ? SUCCESS : FAILURE_CAN_RETRY;
-        assertThat("channel send(PAUSE)", mChannel.send(PAUSE), is(delivery));
+        assertThat("channel send(PAUSE)", mChannel.send(Reference.Message.Control.<String>pause()), is(delivery));
     }
 
     @Test(dependsOnGroups = "sanity.reference", dependsOnMethods = "pause")
@@ -260,8 +261,8 @@ public class ReferenceTest extends TestCase {
         }};
 
         assertThat("reference start", mReference.start(mExecutor), is(true));
-        assertThat("channel send(PAUSE)", mChannel.send(PAUSE), is(SUCCESS));
-        assertThat("channel send(PAUSE)", mChannel.send(PAUSE), is(SUCCESS));
+        assertThat("channel send(PAUSE)", mChannel.send(Reference.Message.Control.<String>pause()), is(SUCCESS));
+        assertThat("channel send(PAUSE)", mChannel.send(Reference.Message.Control.<String>pause()), is(SUCCESS));
     }
 
     @Test(dependsOnGroups = "sanity.reference", dependsOnMethods = "pause")
@@ -269,7 +270,7 @@ public class ReferenceTest extends TestCase {
         new StrictExpectations() {{
             mActor.postStart(mContext, mReference);
             final Executor.Submission submission = mExecutor.submit(mReference);
-            mMailbox.send(new Mailbox.Message.Control<String>(PAUSE));
+            Send.withRetries(mMailbox, Reference.Message.Control.<String>pause());
             result = true;
             notNull(submission).stop();
             result = true;
@@ -289,7 +290,7 @@ public class ReferenceTest extends TestCase {
             mExecutor.submit(mReference);
             mMailbox.isAttached();
             result = true;
-            mMailbox.send(new Mailbox.Message.Control<String>(STOP));
+            Send.withRetries(mMailbox, Reference.Message.Control.<String>stop());
             result = success.value();
         }};
 
@@ -359,7 +360,7 @@ public class ReferenceTest extends TestCase {
 
         assertThat("reference start", mReference.start(mExecutor), is(true));
         final int delivery = success.value() ? SUCCESS : FAILURE_CAN_RETRY;
-        assertThat("channel send(STOP)", mChannel.send(STOP), is(delivery));
+        assertThat("channel send(STOP)", mChannel.send(Reference.Message.Control.<String>stop()), is(delivery));
     }
 
     @Test(dependsOnGroups = "sanity.reference",
@@ -371,7 +372,7 @@ public class ReferenceTest extends TestCase {
             mExecutor.submit(mReference);
             mMailbox.isAttached();
             result = true;
-            mMailbox.send(new Mailbox.Message.Control<String>(STOP));
+            Send.withRetries(mMailbox, Reference.Message.Control.<String>stop());
             result = true;
         }};
 
@@ -401,7 +402,7 @@ public class ReferenceTest extends TestCase {
             mExecutor.submit(mReference);
             mMailbox.isAttached();
             result = true;
-            mMailbox.send(new Mailbox.Message.Control<String>(STOP));
+            Send.withRetries(mMailbox, Reference.Message.Control.<String>stop());
             result = true;
         }};
 
@@ -431,7 +432,7 @@ public class ReferenceTest extends TestCase {
             mExecutor.submit(mReference);
             mMailbox.isAttached();
             result = true;
-            mMailbox.send(new Mailbox.Message.Control<String>(STOP));
+            Send.withRetries(mMailbox, Reference.Message.Control.<String>stop());
             result = true;
         }};
 
@@ -470,7 +471,7 @@ public class ReferenceTest extends TestCase {
             mExecutor.submit(mReference);
             mMailbox.isAttached();
             result = true;
-            mMailbox.send(new Mailbox.Message.Control<String>(STOP));
+            Send.withRetries(mMailbox, Reference.Message.Control.<String>stop());
             result = true;
             mMailbox.stop(true);
             result = success.value();
@@ -559,18 +560,18 @@ public class ReferenceTest extends TestCase {
         }};
 
         assertThat("reference start", mReference.start(mExecutor), is(true));
-        assertThat("channel send(unknown)", mChannel.send(0), is(FAILURE_NO_RETRY));
+        assertThat("channel send(unknown)", mChannel.send(new Reference.Message.Control<String>(0)), is(FAILURE_NO_RETRY));
     }
 
     @Test(groups = {"sanity", "sanity.reference"}, dependsOnMethods = "receiveMessage")
     public final void noDirectCallCycles() {
         final String message = isA(RandomMessage);
-        final Channel<String> channel = Captured.as(Channel.class);
+        final Channel<Reference.Message<String>> channel = Captured.as(Channel.class);
         final Actor<String> actor = new Actor<String>() {
             @Override
             protected void onMessage(@NonNull final String value) {
                 final int failure = FAILURE_CAN_RETRY;
-                assertThat("channel send", channel.send(message), is(failure));
+                assertThat("channel send", channel.send(new Reference.Message.User<>(message)), is(failure));
             }
         };
 
@@ -583,8 +584,9 @@ public class ReferenceTest extends TestCase {
 
         final Reference<String> reference = new Reference<>(mContext, actor, mCallback);
         assertThat("reference start", reference.start(mExecutor), is(true));
-        assertThat("channel send", channel.send(message), is(SUCCESS));
-        assertThat("channel send", channel.send(message), is(SUCCESS));
+        assertThat("channel send", channel.send(new Reference.Message.User<>(message)),
+                is(SUCCESS));
+        assertThat("channel send", channel.send(new Reference.Message.User<>(message)), is(SUCCESS));
     }
 
     private static final RandomDataGenerator<String> RandomName = RandomString;

@@ -17,6 +17,7 @@
 package android.actor;
 
 import android.actor.channel.Mailbox;
+import android.actor.channel.Send;
 import android.actor.executor.Executable;
 import android.support.annotation.IntDef;
 import android.support.annotation.NonNull;
@@ -58,7 +59,7 @@ public class Reference<M> implements Executable {
     private final Task<M> mTask;
     @NonNull
     @GuardedBy("mLock")
-    private final Mailbox<M> mMailbox;
+    private final Mailbox<Message<M>> mMailbox;
 
     private final Lock mLock = new ReentrantLock();
 
@@ -107,7 +108,7 @@ public class Reference<M> implements Executable {
                 throw new UnsupportedOperationException(this + " is stopped!");
             }
 
-            success = mMailbox.send(new Mailbox.Message.User<>(message));
+            success = Send.withRetries(mMailbox, new Message.User<>(message));
         } finally {
             mLock.unlock();
         }
@@ -127,7 +128,7 @@ public class Reference<M> implements Executable {
                 case State.STARTED:
                     // TODO don't use isAttached(); Mailbox should check that somehow
                     success = mMailbox.isAttached() ?
-                            mMailbox.send(new Mailbox.Message.Control<M>(Control.STOP)) :
+                            Send.withRetries(mMailbox, Message.Control.<M>stop()) :
                             (mMailbox.stop(false) && stop(true));
 
                     if (success && (mState == State.STARTED)) {
@@ -270,7 +271,7 @@ public class Reference<M> implements Executable {
                     throw new UnsupportedOperationException(this + " is stopped!");
                 }
 
-                success = mMailbox.send(new Mailbox.Message.Control<M>(Control.PAUSE));
+                success = Send.withRetries(mMailbox, Message.Control.<M>pause());
             }
         } finally {
             mLock.unlock();
@@ -326,14 +327,6 @@ public class Reference<M> implements Executable {
     }
 
     @Retention(SOURCE)
-    @IntDef({Control.PAUSE, Control.STOP})
-    @VisibleForTesting
-    @interface Control {
-        int PAUSE = 1;
-        int STOP = 2;
-    }
-
-    @Retention(SOURCE)
     @IntDef({State.INITIALIZED, State.STARTED, State.STOPPING, State.STOPPED})
     private @interface State {
         int INITIALIZED = 1;
@@ -342,8 +335,157 @@ public class Reference<M> implements Executable {
         int STOPPED = 4;
     }
 
+    @VisibleForTesting
+    abstract static class Message<M> implements android.actor.channel.Message {
+
+        @Channel.Delivery
+        public abstract int deliverTo(@NonNull final Callback<M> callback);
+
+        public interface Callback<M> {
+
+            @Channel.Delivery
+            int receive(final int message);
+
+            @Channel.Delivery
+            int receive(@NonNull final M message);
+        }
+
+        public static final class Control<M> extends Message<M> {
+
+            private static final Control<Object> Pause = new Control<>(Type.PAUSE);
+            private static final Control<Object> Stop = new Control<>(Type.STOP);
+
+            @Type
+            private final int mType;
+
+            public Control(@Type final int type) {
+                super();
+
+                mType = type;
+            }
+
+            @Override
+            public boolean isControl() {
+                return true;
+            }
+
+            @Channel.Delivery
+            @Override
+            public int deliverTo(@NonNull final Callback<M> callback) {
+                return callback.receive(mType);
+            }
+
+            @Override
+            public int hashCode() {
+                return mType;
+            }
+
+            @Override
+            public boolean equals(@Nullable final Object object) {
+                boolean result = this == object;
+
+                if (!result && (object instanceof Control)) {
+                    final Control<?> other = (Control<?>) object;
+                    result = mType == other.mType;
+                }
+
+                return result;
+            }
+
+            @NonNls
+            @NonNull
+            @Override
+            public String toString() {
+                return "Control(type=" + toString(mType) + ')';
+            }
+
+            @SuppressWarnings("unchecked")
+            public static <M> Control<M> pause() {
+                return (Control<M>) Pause;
+            }
+
+            @SuppressWarnings("unchecked")
+            public static <M> Control<M> stop() {
+                return (Control<M>) Stop;
+            }
+
+            @NonNls
+            @NonNull
+            private static String toString(@Type final int type) {
+                @NonNls final String result;
+
+                switch (type) {
+                    case Type.PAUSE:
+                        result = "pause";
+                        break;
+                    case Type.STOP:
+                        result = "stop";
+                        break;
+                    default:
+                        result = "unknown(" + type + ')';
+                }
+
+                return result;
+            }
+
+            @Retention(SOURCE)
+            @IntDef({Type.PAUSE, Type.STOP})
+            @VisibleForTesting
+            @interface Type {
+                int PAUSE = 1;
+                int STOP = 2;
+            }
+        }
+
+        public static final class User<M> extends Message<M> {
+
+            @NonNull
+            private final M mMessage;
+
+            public User(@NonNull final M message) {
+                super();
+
+                mMessage = message;
+            }
+
+            @Override
+            public boolean isControl() {
+                return false;
+            }
+
+            @Override
+            public int deliverTo(@NonNull final Callback<M> callback) {
+                return callback.receive(mMessage);
+            }
+
+            @Override
+            public int hashCode() {
+                return mMessage.hashCode();
+            }
+
+            @Override
+            public boolean equals(@Nullable final Object object) {
+                boolean result = this == object;
+
+                if (!result && (object instanceof User<?>)) {
+                    final User<?> other = (User<?>) object;
+                    result = mMessage == other.mMessage;
+                }
+
+                return result;
+            }
+
+            @NonNls
+            @NonNull
+            @Override
+            public String toString() {
+                return "User(message=" + mMessage + ')';
+            }
+        }
+    }
+
     @NotThreadSafe
-    private static final class Task<M> implements Channel<M> {
+    private static final class Task<M> implements Channel<Message<M>>, Message.Callback<M> {
 
         @NonNull
         private final Reference<M> mReference;
@@ -379,18 +521,25 @@ public class Reference<M> implements Executable {
             return success;
         }
 
+        @Channel.Delivery
         @Override
-        public int send(@NonNls final int message) {
+        public int send(@NonNull final Message<M> message) {
+            return message.deliverTo(this);
+        }
+
+        @Channel.Delivery
+        @Override
+        public int receive(@NonNls final int message) {
             final int result;
 
             switch (message) {
-                case Control.PAUSE:
+                case Message.Control.Type.PAUSE:
                     result = ((mSubmission == null) || mSubmission.stop()) ?
                             Channel.Delivery.SUCCESS :
                             Channel.Delivery.FAILURE_CAN_RETRY;
                     mSubmission = null;
                     break;
-                case Control.STOP:
+                case Message.Control.Type.STOP:
                     result = mReference.stop(true) ?
                             Channel.Delivery.SUCCESS :
                             Channel.Delivery.FAILURE_CAN_RETRY;
@@ -408,7 +557,7 @@ public class Reference<M> implements Executable {
 
         @Channel.Delivery
         @Override
-        public int send(@NonNls @NonNull final M message) {
+        public int receive(@NonNls @NonNull final M message) {
             int result = Channel.Delivery.SUCCESS;
 
             if (mDirectCall.tryAcquire()) {

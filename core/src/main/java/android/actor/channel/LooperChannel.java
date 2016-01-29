@@ -17,10 +17,9 @@
 package android.actor.channel;
 
 import android.actor.Channel;
-import android.actor.Configuration;
 import android.os.Handler;
 import android.os.Looper;
-import android.support.annotation.IntDef;
+import android.os.Message;
 import android.support.annotation.NonNull;
 import android.support.annotation.VisibleForTesting;
 import android.util.Log;
@@ -30,11 +29,8 @@ import net.jcip.annotations.ThreadSafe;
 
 import org.jetbrains.annotations.NonNls;
 
-import java.lang.annotation.Retention;
-
 import static android.util.Log.DEBUG;
 import static java.lang.Thread.currentThread;
-import static java.lang.annotation.RetentionPolicy.SOURCE;
 
 @ThreadSafe
 public class LooperChannel<M> implements Channel<M> {
@@ -60,8 +56,7 @@ public class LooperChannel<M> implements Channel<M> {
     }
 
     public final boolean hasUndeliveredMessages() {
-        return mHandler.hasMessages(Message.Type.CONTROL, mToken) ||
-                mHandler.hasMessages(Message.Type.USER, mToken);
+        return mHandler.hasMessages(Deliver.Type, mToken);
     }
 
     public final boolean isOnCurrentThread() {
@@ -70,31 +65,15 @@ public class LooperChannel<M> implements Channel<M> {
 
     @Channel.Delivery
     @Override
-    public final int send(final int message) {
-        @Channel.Delivery int result = (isOnCurrentThread() && !hasUndeliveredMessages()) ?
-                mDestination.send(message) :
-                Delivery.FAILURE_CAN_RETRY;
-
-        if (result == Delivery.FAILURE_CAN_RETRY) {
-            result = control(message).send() ?
-                    Delivery.SUCCESS :
-                    Delivery.FAILURE_NO_RETRY;
-        }
-
-        return result;
-    }
-
-    @Channel.Delivery
-    @Override
     public final int send(@NonNull final M message) {
         @Channel.Delivery int result = (isOnCurrentThread() && !hasUndeliveredMessages()) ?
                 mDestination.send(message) :
-                Delivery.FAILURE_CAN_RETRY;
+                Channel.Delivery.FAILURE_CAN_RETRY;
 
-        if (result == Delivery.FAILURE_CAN_RETRY) {
-            result = user(message).send() ?
-                    Delivery.SUCCESS :
-                    Delivery.FAILURE_NO_RETRY;
+        if (result == Channel.Delivery.FAILURE_CAN_RETRY) {
+            result = dispatch(message) ?
+                    Channel.Delivery.SUCCESS :
+                    Channel.Delivery.FAILURE_NO_RETRY;
         }
 
         return result;
@@ -103,155 +82,50 @@ public class LooperChannel<M> implements Channel<M> {
     @Override
     public final boolean stop(final boolean immediately) {
         if (immediately) {
-            mHandler.removeMessages(Message.Type.CONTROL, mToken);
-            mHandler.removeMessages(Message.Type.USER, mToken);
+            mHandler.removeMessages(Deliver.Type, mToken);
         }
 
         return !hasUndeliveredMessages();
     }
 
-    @NonNull
-    private Message control(final int message) {
-        return new Message.Control(mHandler, mToken, mDestination, message);
-    }
+    private boolean dispatch(@NonNls @NonNull final M message) {
+        final Message msg = Message.obtain(mHandler, new Deliver<>(mDestination, message));
+        msg.what = Deliver.Type;
+        msg.obj = mToken;
+        final boolean success = mHandler.sendMessage(msg);
 
-    @NonNull
-    private Message user(final M message) {
-        return new Message.User<>(mHandler, mToken, mDestination, message);
+        if (success) {
+            if (Log.isLoggable(TAG, DEBUG)) {
+                Log.d(TAG, message + " dispatched"); //NON-NLS
+            }
+        } else {
+            Log.e(TAG, "Failed to dispatch " + message + '!'); //NON-NLS
+        }
+
+        return success;
     }
 
     @ThreadSafe
     @VisibleForTesting
-    abstract static class Message implements Runnable {
+    static class Deliver<M> implements Runnable {
+
+        public static final int Type = 1;
 
         @NonNull
-        private final Handler mHandler;
+        private final Channel<M> mDestination;
         @NonNull
-        private final Object mToken;
-        @Type
-        private final int mType;
+        private final M mMessage;
 
-        protected Message(@NonNull final Handler handler,
-                          @NonNull final Object token,
-                          @Type final int type) {
+        protected Deliver(@NonNull final Channel<M> destination, @NonNull final M message) {
             super();
 
-            mHandler = handler;
-            mToken = token;
-            mType = type;
+            mDestination = destination;
+            mMessage = message;
         }
-
-        @Channel.Delivery
-        protected abstract int deliver();
 
         @Override
         public final void run() {
-            int delivery;
-
-            int triesLeft = Configuration.MaximumNumberOfRetries.get();
-            do {
-                delivery = deliver();
-                triesLeft--;
-            } while ((delivery == Channel.Delivery.FAILURE_CAN_RETRY) && (triesLeft > 0));
-
-            if (delivery == Channel.Delivery.SUCCESS) {
-                if (Log.isLoggable(TAG, DEBUG)) {
-                    Log.d(TAG, "Successfully delivered " + this); //NON-NLS
-                }
-            } else {
-                Log.e(TAG, "Failed to deliver " + this + "! Cannot retry"); //NON-NLS
-            }
-        }
-
-        public final boolean send() {
-            final android.os.Message message = android.os.Message.obtain(mHandler, this);
-            message.what = mType;
-            message.obj = mToken;
-            final boolean success = mHandler.sendMessage(message);
-
-            if (success) {
-                if (Log.isLoggable(TAG, DEBUG)) {
-                    Log.d(TAG, this + "dispatched"); //NON-NLS
-                }
-            } else {
-                Log.e(TAG, "Failed to dispatch " + this + '!'); //NON-NLS
-            }
-
-            return success;
-        }
-
-        @NonNls
-        @NonNull
-        @Override
-        public abstract String toString();
-
-        @Retention(SOURCE)
-        @IntDef({Type.CONTROL, Type.USER})
-        @VisibleForTesting
-        @interface Type {
-            int CONTROL = 1;
-            int USER = 2;
-        }
-
-        @ThreadSafe
-        public static final class Control extends Message {
-
-            @NonNull
-            private final Channel<?> mDestination;
-            private final int mMessage;
-
-            public <M> Control(@NonNull final Handler handler,
-                               @NonNull final Object token,
-                               @NonNull final Channel<M> destination,
-                               final int message) {
-                super(handler, token, Type.CONTROL);
-
-                mDestination = destination;
-                mMessage = message;
-            }
-
-            @Override
-            protected int deliver() {
-                return mDestination.send(mMessage);
-            }
-
-            @NonNls
-            @NonNull
-            @Override
-            public String toString() {
-                return "Message(type=Control, data=" + mMessage + ')';
-            }
-        }
-
-        @ThreadSafe
-        public static final class User<M> extends Message {
-
-            @NonNull
-            private final Channel<M> mDestination;
-            @NonNull
-            private final M mMessage;
-
-            public User(@NonNull final Handler handler,
-                        @NonNull final Object token,
-                        @NonNull final Channel<M> destination,
-                        @NonNull final M message) {
-                super(handler, token, Type.USER);
-
-                mDestination = destination;
-                mMessage = message;
-            }
-
-            @Override
-            protected int deliver() {
-                return mDestination.send(mMessage);
-            }
-
-            @NonNls
-            @NonNull
-            @Override
-            public String toString() {
-                return "Message(type=User, data=" + mMessage + ')';
-            }
+            Send.withRetries(mDestination, mMessage);
         }
     }
 }

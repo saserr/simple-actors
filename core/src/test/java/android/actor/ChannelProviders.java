@@ -36,12 +36,6 @@ public final class ChannelProviders {
         );
     }
 
-    @NonNull
-    @DataProvider(name = "retries")
-    public static Object[][] retries() {
-        return booleans("no retries", "with retries");
-    }
-
     private ChannelProviders() {
         super();
     }

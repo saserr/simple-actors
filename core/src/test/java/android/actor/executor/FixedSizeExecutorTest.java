@@ -27,6 +27,7 @@ import mockit.Mocked;
 import mockit.StrictExpectations;
 
 import static android.actor.executor.SimpleExecutor.EXECUTOR_STOPPED;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class FixedSizeExecutorTest extends TestCase {
 
@@ -62,7 +63,8 @@ public class FixedSizeExecutorTest extends TestCase {
             expectedExceptions = IllegalArgumentException.class,
             expectedExceptionsMessageRegExp = "Size must be grater than zero")
     public final void sizeMustBePositive() {
-        new FixedSizeExecutor(a(RandomInteger.thatIs(NonPositive)));
+        final int invalidSize = a(RandomInteger.thatIs(lessThanOrEqualTo(0)));
+        new FixedSizeExecutor(invalidSize);
     }
 
     @Test(groups = {"sanity", "sanity.executor", "sanity.executor.fixed"})

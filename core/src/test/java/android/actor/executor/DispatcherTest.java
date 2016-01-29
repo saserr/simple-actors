@@ -37,6 +37,7 @@ import static android.actor.Providers.booleans;
 import static android.actor.executor.DispatcherMatchers.empty;
 import static android.actor.executor.DispatcherMatchers.hasSize;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
@@ -152,7 +153,8 @@ public class DispatcherTest extends TestCase {
         runnable.run();
     }
 
-    private static final RandomDataGenerator<Integer> RandomSize = RandomInteger.thatIs(Positive);
+    private static final RandomDataGenerator<Integer> RandomSize =
+            RandomInteger.thatIs(greaterThan(0));
 
     @NonNull
     @DataProvider(name = "emptiness")
