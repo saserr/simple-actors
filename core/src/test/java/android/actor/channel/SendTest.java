@@ -21,6 +21,7 @@ import android.actor.ChannelProviders;
 import android.actor.Configuration;
 import android.actor.Providers;
 import android.actor.TestCase;
+import android.actor.util.Retry;
 import android.support.annotation.NonNull;
 
 import org.testng.annotations.AfterMethod;
@@ -31,11 +32,15 @@ import org.testng.annotations.Test;
 import mockit.Injectable;
 import mockit.StrictExpectations;
 
+import static android.actor.Channel.Delivery.ERROR;
+import static android.actor.Channel.Delivery.FAILURE;
+import static android.actor.Channel.Delivery.SUCCESS;
 import static android.actor.Providers.booleans;
 import static android.actor.Providers.cartesian;
 import static android.actor.Providers.successOrFailure;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.testng.Assert.fail;
 
 public class SendTest extends TestCase {
 
@@ -64,8 +69,19 @@ public class SendTest extends TestCase {
             result = delivery.value();
         }};
 
-        final boolean success = delivery.value() != Channel.Delivery.FAILURE_CAN_RETRY;
-        assertThat("send", mSend.execute(), is(success));
+        switch (delivery.value()) {
+            case SUCCESS:
+                assertThat("send", mSend.execute(), is(Retry.SUCCESS));
+                break;
+            case FAILURE:
+                assertThat("send", mSend.execute(), is(Retry.AGAIN));
+                break;
+            case ERROR:
+                assertThat("send", mSend.execute(), is(Retry.FAILURE));
+                break;
+            default:
+                fail("Unknown delivery: " + delivery.value()); //NON-NLS
+        }
     }
 
     @Test(groups = {"sanity", "sanity.send"}, dataProvider = "(retries, success)")
@@ -74,16 +90,17 @@ public class SendTest extends TestCase {
         if (retries.value()) {
             new StrictExpectations() {{
                 mChannel.send(mMessage);
-                result = Channel.Delivery.FAILURE_CAN_RETRY;
+                result = FAILURE;
             }};
         }
 
         new StrictExpectations() {{
             mChannel.send(mMessage);
-            result = success.value() ? Channel.Delivery.SUCCESS : Channel.Delivery.FAILURE_NO_RETRY;
+            result = success.value() ? SUCCESS : ERROR;
         }};
 
-        assertThat("send with retries", Send.withRetries(mChannel, mMessage), is(true));
+        final int result = success.value() ? Retry.SUCCESS : Retry.FAILURE;
+        assertThat("send with retries", Send.withRetries(mChannel, mMessage), is(result));
     }
 
     @Test(dependsOnGroups = "sanity.send")
@@ -91,10 +108,10 @@ public class SendTest extends TestCase {
         new StrictExpectations() {{
             mChannel.send(mMessage);
             times = Configuration.MaximumNumberOfRetries.get();
-            result = Channel.Delivery.FAILURE_CAN_RETRY;
+            result = FAILURE;
         }};
 
-        assertThat("send with retries", Send.withRetries(mChannel, mMessage), is(false));
+        assertThat("send with retries", Send.withRetries(mChannel, mMessage), is(Retry.AGAIN));
     }
 
     @NonNull
@@ -103,6 +120,5 @@ public class SendTest extends TestCase {
         return cartesian(booleans("no retries", "with retries"), successOrFailure());
     }
 
-    private interface Message {
-    }
+    private interface Message {}
 }

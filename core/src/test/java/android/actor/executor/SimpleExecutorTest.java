@@ -28,7 +28,6 @@ import org.testng.annotations.Test;
 import mockit.Injectable;
 import mockit.StrictExpectations;
 
-import static android.actor.executor.SimpleExecutor.EXECUTOR_STOPPED;
 import static android.actor.executor.SimpleExecutorMatchers.empty;
 import static android.actor.executor.SimpleExecutorMatchers.hasSize;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -213,7 +212,7 @@ public class SimpleExecutorTest extends TestCase {
 
     @Test(dependsOnGroups = "sanity.executor.simple", dependsOnMethods = "stopBeforeStart",
             expectedExceptions = UnsupportedOperationException.class,
-            expectedExceptionsMessageRegExp = EXECUTOR_STOPPED)
+            expectedExceptionsMessageRegExp = Executor.STOPPED)
     public final void submitAfterStop() {
         mExecutor.stop();
         mExecutor.submit(mExecutable);
@@ -221,7 +220,7 @@ public class SimpleExecutorTest extends TestCase {
 
     @Test(dependsOnGroups = "sanity.executor.simple", dependsOnMethods = "stopBeforeStart",
             expectedExceptions = UnsupportedOperationException.class,
-            expectedExceptionsMessageRegExp = EXECUTOR_STOPPED)
+            expectedExceptionsMessageRegExp = Executor.STOPPED)
     public final void startAfterStop() {
         mExecutor.stop();
         mExecutor.start(mFactory);

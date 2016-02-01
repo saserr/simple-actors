@@ -131,14 +131,14 @@ public final class Providers {
         }
 
         @NonNull
-        public T value() {
+        public final T value() {
             return mValue;
         }
 
         @NonNls
         @NonNull
         @Override
-        public String toString() {
+        public final String toString() {
             return mName;
         }
     }

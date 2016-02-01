@@ -18,14 +18,18 @@ package android.actor.util;
 
 import android.actor.Providers;
 import android.actor.TestCase;
+import android.support.annotation.NonNull;
 
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import mockit.Injectable;
 import mockit.StrictExpectations;
 
+import static android.actor.Providers.provider;
+import static android.actor.Providers.value;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -34,7 +38,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class RetryTest extends TestCase {
 
     private static final int ONCE = 1;
-    private static final int TWICE = 2;
 
     @Injectable
     private Retry.Action mAction;
@@ -51,36 +54,37 @@ public class RetryTest extends TestCase {
         verifyNoMoreInteractions(mAction);
     }
 
-    @Test(groups = {"sanity", "sanity.retry"},
-            dataProvider = "success or failure", dataProviderClass = Providers.class)
-    public final void runWithoutRetry(final Providers.Boolean success) {
+    @Test(groups = {"sanity", "sanity.retry"}, dataProvider = "results")
+    public final void runWithoutRetry(final Providers.Value<Integer> retry) {
         new StrictExpectations() {{
             mAction.execute();
-            result = success.value();
+            result = retry.value();
         }};
 
-        if (!success.value()) {
+        if (retry.value() == Retry.AGAIN) {
             new StrictExpectations() {{
                 mAction.onNoMoreRetries();
             }};
         }
 
-        assertThat("retry", mRetry.run(ONCE), is(success.value()));
+        assertThat("retry", mRetry.run(ONCE), is(retry.value()));
     }
 
-    @Test(groups = {"sanity", "sanity.retry"})
-    public final void runWithRetry() {
+    @Test(groups = {"sanity", "sanity.retry"},
+            dataProvider = "success or failure", dataProviderClass = Providers.class)
+    public final void runWithRetry(final Providers.Boolean success) {
         final int moreThanOnce = isA(RandomInteger.thatIs(greaterThan(ONCE)));
 
         new StrictExpectations() {{
             mAction.execute();
-            result = false;
+            result = Retry.AGAIN;
             mAction.onRetry(moreThanOnce - 1);
             mAction.execute();
-            result = true;
+            result = success.value() ? Retry.SUCCESS : Retry.FAILURE;
         }};
 
-        assertThat("retry", mRetry.run(moreThanOnce), is(true));
+        final int result = success.value() ? Retry.SUCCESS : Retry.FAILURE;
+        assertThat("retry", mRetry.run(moreThanOnce), is(result));
     }
 
     @Test(dependsOnGroups = "sanity.retry",
@@ -89,5 +93,15 @@ public class RetryTest extends TestCase {
     public final void runWithNonPositiveNumberOfTries() {
         final Integer invalidTries = isA(RandomInteger.thatIs(lessThanOrEqualTo(0)));
         mRetry.run(invalidTries);
+    }
+
+    @NonNull
+    @DataProvider(name = "results")
+    private static Object[][] delivery() {
+        return provider(
+                value("success", Retry.SUCCESS),
+                value("again", Retry.AGAIN),
+                value("failure", Retry.FAILURE)
+        );
     }
 }

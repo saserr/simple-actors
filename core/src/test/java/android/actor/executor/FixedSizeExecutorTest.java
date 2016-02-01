@@ -16,6 +16,7 @@
 
 package android.actor.executor;
 
+import android.actor.Executor;
 import android.actor.TestCase;
 
 import org.testng.annotations.AfterMethod;
@@ -26,7 +27,6 @@ import mockit.Injectable;
 import mockit.Mocked;
 import mockit.StrictExpectations;
 
-import static android.actor.executor.SimpleExecutor.EXECUTOR_STOPPED;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class FixedSizeExecutorTest extends TestCase {
@@ -116,7 +116,7 @@ public class FixedSizeExecutorTest extends TestCase {
 
     @Test(dependsOnGroups = "sanity.executor.fixed", dependsOnMethods = "stop",
             expectedExceptions = UnsupportedOperationException.class,
-            expectedExceptionsMessageRegExp = EXECUTOR_STOPPED)
+            expectedExceptionsMessageRegExp = Executor.STOPPED)
     public final void submitAfterStop() {
         new StrictExpectations() {{
             mDispatcher1.stop();

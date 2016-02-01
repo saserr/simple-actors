@@ -16,12 +16,21 @@
 
 package android.actor.util;
 
+import android.support.annotation.IntDef;
 import android.support.annotation.NonNull;
 
 import net.jcip.annotations.ThreadSafe;
 
+import java.lang.annotation.Retention;
+
+import static java.lang.annotation.RetentionPolicy.SOURCE;
+
 @ThreadSafe
 public class Retry {
+
+    public static final int SUCCESS = 1;
+    public static final int AGAIN = 2;
+    public static final int FAILURE = 3;
 
     @NonNull
     private final Action mAction;
@@ -32,32 +41,38 @@ public class Retry {
         mAction = action;
     }
 
-    public final boolean run(final int tries) {
+    @Result
+    public final int run(final int tries) {
         if (tries < 1) {
             throw new IllegalArgumentException("Tries must be positive number!");
         }
 
-        boolean success;
+        @Result int result;
 
         int triesLeft = tries;
         do {
-            success = mAction.execute();
+            result = mAction.execute();
             triesLeft--;
-            if (!success && (triesLeft > 0)) {
+            if ((result == AGAIN) && (triesLeft > 0)) {
                 mAction.onRetry(triesLeft);
             }
-        } while (!success && (triesLeft > 0));
+        } while ((result == AGAIN) && (triesLeft > 0));
 
-        if (!success) {
+        if (result == AGAIN) {
             mAction.onNoMoreRetries();
         }
 
-        return success;
+        return result;
     }
+
+    @Retention(SOURCE)
+    @IntDef({SUCCESS, AGAIN, FAILURE})
+    public @interface Result {}
 
     public abstract static class Action {
 
-        public abstract boolean execute();
+        @Result
+        public abstract int execute();
 
         protected void onRetry(final int triesLeft) {/* do nothing */}
 

@@ -46,19 +46,31 @@ public class Send<M> extends Retry.Action {
         mMessage = message;
     }
 
+    @Retry.Result
     @Override
-    public final boolean execute() {
-        final int delivery = mChannel.send(mMessage);
+    public final int execute() {
+        @Retry.Result final int result;
 
-        if (delivery == Channel.Delivery.SUCCESS) {
-            if (Log.isLoggable(TAG, DEBUG)) {
-                Log.d(TAG, "Successfully delivered " + mMessage); //NON-NLS
-            }
-        } else if (delivery == Channel.Delivery.FAILURE_NO_RETRY) {
-            Log.e(TAG, "Failed to deliver " + mMessage + "! Cannot retry"); //NON-NLS
+        @Channel.Delivery final int delivery = mChannel.send(mMessage);
+        switch (delivery) {
+            case Channel.Delivery.SUCCESS:
+                if (Log.isLoggable(TAG, DEBUG)) {
+                    Log.d(TAG, "Successfully delivered " + mMessage); //NON-NLS
+                }
+                result = Retry.SUCCESS;
+                break;
+            case Channel.Delivery.FAILURE:
+                result = Retry.AGAIN;
+                break;
+            case Channel.Delivery.ERROR:
+                Log.e(TAG, "Failed to deliver " + mMessage + "! Cannot retry"); //NON-NLS
+                result = Retry.FAILURE;
+                break;
+            default:
+                throw new UnsupportedOperationException("Unknown delivery: " + delivery);
         }
 
-        return delivery != Channel.Delivery.FAILURE_CAN_RETRY;
+        return result;
     }
 
     @Override
@@ -72,14 +84,16 @@ public class Send<M> extends Retry.Action {
         Log.e(TAG, "Failed to deliver " + mMessage + "! No more retries"); //NON-NLS
     }
 
-    public static <M> boolean withRetries(@NonNull final Channel<? super M> channel,
-                                          @NonNull final M message) {
+    @Retry.Result
+    public static <M> int withRetries(@NonNull final Channel<? super M> channel,
+                                      @NonNull final M message) {
         return withRetries(channel, message, MaximumNumberOfRetries.get());
     }
 
-    public static <M> boolean withRetries(@NonNull final Channel<? super M> channel,
-                                          @NonNull final M message,
-                                          final int tries) {
+    @Retry.Result
+    public static <M> int withRetries(@NonNull final Channel<? super M> channel,
+                                      @NonNull final M message,
+                                      final int tries) {
         return new Retry(new Send<>(channel, message)).run(tries);
     }
 }

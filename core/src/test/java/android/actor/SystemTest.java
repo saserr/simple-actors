@@ -16,6 +16,7 @@
 
 package android.actor;
 
+import android.actor.channel.Mailbox;
 import android.support.annotation.NonNull;
 
 import org.testng.annotations.AfterMethod;
@@ -32,7 +33,6 @@ import static android.actor.ContextMatchers.hasName;
 import static android.actor.Providers.booleans;
 import static android.actor.Providers.cartesian;
 import static android.actor.Providers.successOrFailure;
-import static android.actor.System.SYSTEM_STOPPED;
 import static android.actor.SystemMatchers.paused;
 import static android.actor.SystemMatchers.started;
 import static android.actor.SystemMatchers.stopped;
@@ -43,12 +43,14 @@ import static org.hamcrest.Matchers.notNullValue;
 public class SystemTest extends TestCase {
 
     @Mocked
-    private Reference<?> mAllReferences;
+    private Mailbox.Runner mAllMailboxRunners;
+    @Mocked
+    private Reference<Message> mAllReferences;
 
     @Injectable
     private Executor mExecutor;
     @Injectable
-    private Actor<?> mActor;
+    private Actor<Message> mActor;
 
     private System mSystem;
 
@@ -75,14 +77,18 @@ public class SystemTest extends TestCase {
 
     @Test(groups = {"sanity", "sanity.system"})
     public final void registerActor() {
+        final String name = isA(RandomName);
+
         new StrictExpectations() {{
-            final Reference<?> reference =
-                    new Reference<>((Context) any, mActor, (Reference.Callback) any);
-            reference.start(mExecutor);
+            final Mailbox.Runner runner = new Mailbox.Runner((Mailbox<Message>) any);
+            final Reference<Message> reference =
+                    new Reference<>(mSystem, new Actor.Name(null, name), (Channel<Message>) any);
+            mActor.postStart((Context) any, reference);
+            runner.start(mExecutor);
             result = true;
         }};
 
-        final Reference<?> reference = mSystem.register(isA(RandomName), mActor);
+        final Reference<?> reference = mSystem.register(name, mActor);
         assertThat("actor reference", reference, is(notNullValue()));
     }
 
@@ -90,29 +96,34 @@ public class SystemTest extends TestCase {
             expectedExceptions = UnsupportedOperationException.class,
             expectedExceptionsMessageRegExp = ".* could not be started!") //NON-NLS
     public final void registerActorThatDoesNotStart() {
+        final String name = isA(RandomName);
+
         new StrictExpectations() {{
-            final Reference<?> reference =
-                    new Reference<>((Context) any, mActor, (Reference.Callback) any);
-            reference.start(mExecutor);
-            result = false;
+            final Reference<Message> reference =
+                    new Reference<>(mSystem, new Actor.Name(null, name), (Channel<Message>) any);
+            mActor.postStart((Context) any, reference);
+            result = new RuntimeException();
         }};
 
-        mSystem.register(a(RandomName), mActor);
+        mSystem.register(name, mActor);
     }
 
     @Test(dependsOnGroups = "sanity.system",
             expectedExceptions = IllegalArgumentException.class,
             expectedExceptionsMessageRegExp = ".* is already registered!")
-    public final void reregisterActorWithSameName(@Injectable final Actor<?> actor1,
-                                                  @Injectable final Actor<?> actor2) {
+    public final void reregisterActorWithSameName(@Injectable final Actor<Message> actor1,
+                                                  @Injectable final Actor<Message> actor2) {
+        final String name = isA(RandomName);
+
         new StrictExpectations() {{
-            final Reference<?> reference =
-                    new Reference<>((Context) any, actor1, (Reference.Callback) any);
-            reference.start(mExecutor);
+            final Mailbox.Runner runner = new Mailbox.Runner((Mailbox<Message>) any);
+            final Reference<Message> reference =
+                    new Reference<>(mSystem, new Actor.Name(null, name), (Channel<Message>) any);
+            actor1.postStart((Context) any, reference);
+            runner.start(mExecutor);
             result = true;
         }};
 
-        final String name = isA(RandomName);
         final Reference<?> reference = mSystem.register(name, actor1);
         assertThat("actor reference", reference, is(notNullValue()));
 
@@ -122,31 +133,33 @@ public class SystemTest extends TestCase {
     }
 
     @Test(dependsOnGroups = "sanity.system")
-    public final void reregisterActorWithSameNameAfterActorStop(@Injectable final Actor<?> actor1,
-                                                                @Injectable final Actor<?> actor2) {
-        final Context context = Captured.as(Context.class);
-        final Reference.Callback callback = Captured.as(Reference.Callback.class);
+    public final void reregisterActorWithSameNameAfterActorStop(@Injectable final Actor<Message> actor1,
+                                                                @Injectable final Actor<Message> actor2) {
+        final String name = isA(RandomName);
 
         new StrictExpectations() {{
-            final Reference<?> reference1 = new Reference<>(
-                    withArgThat(is(Captured.into(context))),
-                    actor1,
-                    withArgThat(is(Captured.into(callback)))
-            );
-            reference1.start(mExecutor);
+            final Mailbox.Runner runner1 = new Mailbox.Runner((Mailbox<Message>) any);
+            final Reference<Message> reference1 =
+                    new Reference<>(mSystem, new Actor.Name(null, name), (Channel<Message>) any);
+            actor1.postStart((Context) any, reference1);
+            runner1.start(mExecutor);
+            result = true;
+            runner1.stop();
             result = true;
 
-            final Reference<?> reference2 =
-                    new Reference<>((Context) any, actor2, (Reference.Callback) any);
-            reference2.start(mExecutor);
+            final Mailbox.Runner runner2 = new Mailbox.Runner((Mailbox<Message>) any);
+            final Reference<Message> reference2 =
+                    new Reference<>(mSystem, new Actor.Name(null, name), (Channel<Message>) any);
+            actor2.postStart((Context) any, reference2);
+            runner2.start(mExecutor);
             result = true;
         }};
 
-        final String name = isA(RandomName);
+
         final Reference<?> reference1 = mSystem.register(name, actor1);
         assertThat("first actor reference", reference1, is(notNullValue()));
 
-        callback.onStop(context.getName());
+        assertThat("first actor stop", mSystem.stop(new Actor.Name(null, name)), is(true));
 
         final Reference<?> reference2 = mSystem.register(name, actor2);
         assertThat("second actor reference", reference2, is(notNullValue()));
@@ -156,19 +169,18 @@ public class SystemTest extends TestCase {
 
     @Test(groups = {"sanity", "sanity.system"}, dependsOnMethods = "registerActor")
     public final void registeredActorContext() {
+        final String name = isA(RandomName);
         final Context context = Captured.as(Context.class);
 
         new StrictExpectations() {{
-            final Reference<?> reference = new Reference<>(
-                    withArgThat(is(Captured.into(context))),
-                    mActor,
-                    (Reference.Callback) any
-            );
-            reference.start(mExecutor);
+            final Mailbox.Runner runner = new Mailbox.Runner((Mailbox<Message>) any);
+            final Reference<Message> reference =
+                    new Reference<>(mSystem, new Actor.Name(null, name), (Channel<Message>) any);
+            mActor.postStart(withArgThat(is(Captured.into(context))), reference);
+            runner.start(mExecutor);
             result = true;
         }};
 
-        final String name = isA(RandomName);
         assertThat("actor reference", mSystem.register(name, mActor), is(notNullValue()));
 
         assertThat("context", context, hasName(new Actor.Name(null, name)));
@@ -176,57 +188,66 @@ public class SystemTest extends TestCase {
     }
 
     @Test(dependsOnGroups = "sanity.system")
-    public final void registerChildActor(@Injectable final Actor<?> parent,
-                                         @Injectable final Actor<?> child) {
+    public final void registerChildActor(@Injectable final Actor<Message> parent,
+                                         @Injectable final Actor<Message> child) {
+        final String parentName = isA(RandomName);
+        final String childName = isA(RandomName);
         final Context context = Captured.as(Context.class);
 
         new StrictExpectations() {{
-            final Reference<?> parentReference = new Reference<>(
-                    withArgThat(is(Captured.into(context))),
-                    parent,
-                    (Reference.Callback) any
-            );
-            parentReference.start(mExecutor);
+            final Mailbox.Runner parentRunner = new Mailbox.Runner((Mailbox<Message>) any);
+            final Reference<Message> parentReference =
+                    new Reference<>(mSystem, new Actor.Name(null, parentName), (Channel<Message>) any);
+            parent.postStart(withArgThat(is(Captured.into(context))), parentReference);
+            parentRunner.start(mExecutor);
             result = true;
-            final Reference<?> childReference =
-                    new Reference<>((Context) any, child, (Reference.Callback) any);
-            childReference.start(mExecutor);
+
+            final Mailbox.Runner childRunner = new Mailbox.Runner((Mailbox<Message>) any);
+            final Reference<Message> childReference =
+                    new Reference<>(
+                            mSystem,
+                            new Actor.Name(new Actor.Name(null, parentName), childName),
+                            (Channel<Message>) any);
+            child.postStart((Context) any, childReference);
+            childRunner.start(mExecutor);
             result = true;
         }};
 
-        final Reference<?> reference = mSystem.register(isA(RandomName), parent);
+        final Reference<?> reference = mSystem.register(parentName, parent);
         assertThat("parent reference", reference, is(notNullValue()));
-        assertThat("child reference", context.register(isA(RandomName), child), is(notNullValue()));
+        assertThat("child reference", context.register(childName, child), is(notNullValue()));
 
         verifyNoMoreInteractions(parent, child);
     }
 
     @Test(dependsOnGroups = "sanity.system", dependsOnMethods = "registerChildActor")
-    public final void registeredChildActorContext(@Injectable final Actor<?> parent,
-                                                  @Injectable final Actor<?> child) {
+    public final void registeredChildActorContext(@Injectable final Actor<Message> parent,
+                                                  @Injectable final Actor<Message> child) {
+        final String parentName = isA(RandomName);
+        final String childName = isA(RandomName);
         final Context parentContext = Captured.as(Context.class);
         final Context childContext = Captured.as(Context.class);
 
         new StrictExpectations() {{
-            final Reference<?> parentReference = new Reference<>(
-                    withArgThat(is(Captured.into(parentContext))),
-                    parent, (Reference.Callback)
-                    any
-            );
-            parentReference.start(mExecutor);
+            final Mailbox.Runner parentRunner = new Mailbox.Runner((Mailbox<Message>) any);
+            final Reference<Message> parentReference =
+                    new Reference<>(mSystem, new Actor.Name(null, parentName), (Channel<Message>) any);
+            parent.postStart(withArgThat(is(Captured.into(parentContext))), parentReference);
+            parentRunner.start(mExecutor);
             result = true;
-            final Reference<?> childReference = new Reference<>(
-                    withArgThat(is(Captured.into(childContext))),
-                    child,
-                    (Reference.Callback) any
-            );
-            childReference.start(mExecutor);
+
+            final Mailbox.Runner childRunner = new Mailbox.Runner((Mailbox<Message>) any);
+            final Reference<Message> childReference =
+                    new Reference<>(
+                            mSystem,
+                            new Actor.Name(new Actor.Name(null, parentName), childName),
+                            (Channel<Message>) any);
+            child.postStart(withArgThat(is(Captured.into(childContext))), childReference);
+            childRunner.start(mExecutor);
             result = true;
         }};
 
-        final String parentName = isA(RandomName);
         assertThat("parent reference", mSystem.register(parentName, parent), is(notNullValue()));
-        final String childName = isA(RandomName);
         assertThat("child reference", parentContext.register(childName, child), is(notNullValue()));
 
         assertThat("child context", childContext,
@@ -237,45 +258,58 @@ public class SystemTest extends TestCase {
     }
 
     @Test(dependsOnGroups = "sanity.system", dependsOnMethods = "registerChildActor")
-    public final void stopParentActorWithChildren(@Injectable final Actor<?> parent,
-                                                  @Injectable final Actor<?> child) {
+    public final void stopParentActorWithChildren(@Injectable final Actor<Message> parent,
+                                                  @Injectable final Actor<Message> child) {
+        final String parentName = isA(RandomName);
+        final String childName = isA(RandomName);
         final Context context = Captured.as(Context.class);
-        final Reference.Callback callback = Captured.as(Reference.Callback.class);
 
         new StrictExpectations() {{
-            final Reference<?> parentReference = new Reference<>(
-                    withArgThat(is(Captured.into(context))),
-                    parent,
-                    withArgThat(is(Captured.into(callback)))
-            );
-            parentReference.start(mExecutor);
+            final Mailbox.Runner parentRunner = new Mailbox.Runner((Mailbox<Message>) any);
+            final Reference<Message> parentReference =
+                    new Reference<>(mSystem, new Actor.Name(null, parentName), (Channel<Message>) any);
+            parent.postStart(withArgThat(is(Captured.into(context))), parentReference);
+            parentRunner.start(mExecutor);
             result = true;
-            final Reference<?> childReference =
-                    new Reference<>((Context) any, child, (Reference.Callback) any);
-            childReference.start(mExecutor);
+
+            final Mailbox.Runner childRunner = new Mailbox.Runner((Mailbox<Message>) any);
+            final Reference<Message> childReference =
+                    new Reference<>(
+                            mSystem,
+                            new Actor.Name(new Actor.Name(null, parentName), childName),
+                            (Channel<Message>) any);
+            child.postStart((Context) any, childReference);
+            childRunner.start(mExecutor);
             result = true;
-            childReference.stop(true);
+
+            parentRunner.stop();
+            result = true;
+            childRunner.stop();
             result = true;
         }};
 
-        final Reference<?> parenReference = mSystem.register(isA(RandomName), parent);
+        final Reference<?> parenReference = mSystem.register(parentName, parent);
         assertThat("parent reference", parenReference, is(notNullValue()));
-        assertThat("child reference", context.register(isA(RandomName), child), is(notNullValue()));
-        callback.onStop(context.getName());
+        assertThat("child reference", context.register(childName, child), is(notNullValue()));
+        mSystem.stop(new Actor.Name(null, parentName));
 
         verifyNoMoreInteractions(parent, child);
     }
 
     @Test(dependsOnGroups = "sanity.system")
     public final void doubleStart() {
+        final String name = isA(RandomName);
+
         new StrictExpectations() {{
-            final Reference<?> reference =
-                    new Reference<>((Context) any, mActor, (Reference.Callback) any);
-            reference.start(mExecutor);
+            final Mailbox.Runner runner = new Mailbox.Runner((Mailbox<Message>) any);
+            final Reference<Message> reference =
+                    new Reference<>(mSystem, new Actor.Name(null, name), (Channel<Message>) any);
+            mActor.postStart((Context) any, reference);
+            runner.start(mExecutor);
             result = true;
         }};
 
-        final Reference<?> reference = mSystem.register(a(RandomName), mActor);
+        final Reference<?> reference = mSystem.register(name, mActor);
         assertThat("actor reference", reference, is(notNullValue()));
 
         assertThat("system start", mSystem.start(), is(true));
@@ -285,16 +319,21 @@ public class SystemTest extends TestCase {
     @Test(dependsOnGroups = "sanity.system",
             dataProvider = "success or failure", dataProviderClass = Providers.class)
     public final void pause(final Providers.Boolean success) {
+        final String name = isA(RandomName);
+
         new StrictExpectations() {{
-            final Reference<?> reference =
-                    new Reference<>((Context) any, mActor, (Reference.Callback) any);
-            reference.start(mExecutor);
+            final Mailbox.Runner runner = new Mailbox.Runner((Mailbox<Message>) any);
+            final Reference<Message> reference =
+                    new Reference<>(mSystem, new Actor.Name(null, name), (Channel<Message>) any);
+            mActor.postStart((Context) any, reference);
+            runner.start(mExecutor);
             result = true;
-            reference.pause();
+
+            runner.stop();
             result = success.value();
         }};
 
-        final Reference<?> reference = mSystem.register(a(RandomName), mActor);
+        final Reference<?> reference = mSystem.register(name, mActor);
         assertThat("actor reference", reference, is(notNullValue()));
 
         assertThat("system pause", mSystem.pause(), is(success.value()));
@@ -303,51 +342,51 @@ public class SystemTest extends TestCase {
 
     @Test(dependsOnGroups = "sanity.system", dependsOnMethods = "pause")
     public final void doublePause() {
+        final String name = isA(RandomName);
+
         new StrictExpectations() {{
-            final Reference<?> reference =
-                    new Reference<>((Context) any, mActor, (Reference.Callback) any);
-            reference.start(mExecutor);
+            final Mailbox.Runner runner = new Mailbox.Runner((Mailbox<Message>) any);
+            final Reference<Message> reference =
+                    new Reference<>(mSystem, new Actor.Name(null, name), (Channel<Message>) any);
+            mActor.postStart((Context) any, reference);
+            runner.start(mExecutor);
             result = true;
-            reference.pause();
+
+            runner.stop();
             result = true;
         }};
 
-        final Reference<?> reference = mSystem.register(a(RandomName), mActor);
+        final Reference<?> reference = mSystem.register(name, mActor);
         assertThat("actor reference", reference, is(notNullValue()));
 
         assertThat("system pause", mSystem.pause(), is(true));
         assertThat("system pause", mSystem.pause(), is(true));
         assertThat("system", mSystem, is(paused()));
-    }
-
-    @Test(dependsOnGroups = "sanity.system")
-    public final void registerActorWhenPaused() {
-        assertThat("system pause", mSystem.pause(), is(true));
-        assertThat("system", mSystem, is(paused()));
-
-        new StrictExpectations() {{
-            new Reference<>((Context) any, mActor, (Reference.Callback) any);
-        }};
-
-        final Reference<?> reference = mSystem.register(a(RandomName), mActor);
-        assertThat("actor reference", reference, is(notNullValue()));
     }
 
     @Test(dependsOnGroups = "sanity.system",
             dataProvider = "success or failure", dataProviderClass = Providers.class)
     public final void startAfterPause(final Providers.Boolean started) {
+        final String name = isA(RandomName);
+
         new StrictExpectations() {{
-            final Reference<?> reference =
-                    new Reference<>((Context) any, mActor, (Reference.Callback) any);
-            reference.start(mExecutor);
+            final Mailbox.Runner runner = new Mailbox.Runner((Mailbox<Message>) any);
+            final Reference<Message> reference =
+                    new Reference<>(mSystem, new Actor.Name(null, name), (Channel<Message>) any);
+            mActor.postStart((Context) any, reference);
+            runner.start(mExecutor);
             result = true;
-            reference.pause();
+
+            runner.stop();
             result = true;
-            reference.start(mExecutor);
+
+            // TODO don't start the paused actor that have already been started
+            mActor.postStart((Context) any, reference);
+            runner.start(mExecutor);
             result = started.value();
         }};
 
-        final Reference<?> reference = mSystem.register(a(RandomName), mActor);
+        final Reference<?> reference = mSystem.register(name, mActor);
         assertThat("actor reference", reference, is(notNullValue()));
 
         assertThat("system pause", mSystem.pause(), is(true));
@@ -355,19 +394,38 @@ public class SystemTest extends TestCase {
         assertThat("system", mSystem, is(started()));
     }
 
+    @Test(dependsOnGroups = "sanity.system")
+    public final void registerActorWhenPaused() {
+        final String name = isA(RandomName);
+
+        assertThat("system pause", mSystem.pause(), is(true));
+        assertThat("system", mSystem, is(paused()));
+
+        new StrictExpectations() {{
+            new Reference<>(mSystem, new Actor.Name(null, name), (Channel<Message>) any);
+        }};
+
+        final Reference<?> reference = mSystem.register(name, mActor);
+        assertThat("actor reference", reference, is(notNullValue()));
+    }
+
     @Test(dependsOnGroups = "sanity.system", dataProvider = "(success, immediateness)")
     public final void stop(final Providers.Boolean success,
                            final Providers.Boolean immediately) {
+        final String name = isA(RandomName);
+
         new StrictExpectations() {{
-            final Reference<?> reference =
-                    new Reference<>((Context) any, mActor, (Reference.Callback) any);
-            reference.start(mExecutor);
+            final Mailbox.Runner runner = new Mailbox.Runner((Mailbox<Message>) any);
+            final Reference<Message> reference =
+                    new Reference<>(mSystem, new Actor.Name(null, name), (Channel<Message>) any);
+            mActor.postStart((Context) any, reference);
+            runner.start(mExecutor);
             result = true;
-            reference.stop(immediately.value());
+            runner.stop();
             result = success.value();
         }};
 
-        final Reference<?> reference = mSystem.register(a(RandomName), mActor);
+        final Reference<?> reference = mSystem.register(name, mActor);
         assertThat("actor reference", reference, is(notNullValue()));
 
         assertThat("system stop", mSystem.stop(immediately.value()), is(success.value()));
@@ -377,16 +435,20 @@ public class SystemTest extends TestCase {
     @Test(dependsOnGroups = "sanity.system", dependsOnMethods = "stop",
             dataProvider = "immediateness")
     public final void doubleStop(final Providers.Boolean immediately) {
+        final String name = isA(RandomName);
+
         new StrictExpectations() {{
-            final Reference<?> reference =
-                    new Reference<>((Context) any, mActor, (Reference.Callback) any);
-            reference.start(mExecutor);
+            final Mailbox.Runner runner = new Mailbox.Runner((Mailbox<Message>) any);
+            final Reference<Message> reference =
+                    new Reference<>(mSystem, new Actor.Name(null, name), (Channel<Message>) any);
+            mActor.postStart((Context) any, reference);
+            runner.start(mExecutor);
             result = true;
-            reference.stop(immediately.value());
+            runner.stop();
             result = true;
         }};
 
-        final Reference<?> reference = mSystem.register(a(RandomName), mActor);
+        final Reference<?> reference = mSystem.register(name, mActor);
         assertThat("actor reference", reference, is(notNullValue()));
 
         assertThat("system stop", mSystem.stop(immediately.value()), is(true));
@@ -397,10 +459,10 @@ public class SystemTest extends TestCase {
     @Test(dependsOnGroups = "sanity.system", dependsOnMethods = "stop",
             dataProvider = "immediateness",
             expectedExceptions = UnsupportedOperationException.class,
-            expectedExceptionsMessageRegExp = SYSTEM_STOPPED)
+            expectedExceptionsMessageRegExp = System.STOPPED)
     public final void registerActorAfterStop(final Providers.Boolean immediately) {
         new StrictExpectations() {{
-            new Reference<>((Context) any, (Actor<?>) any, (Reference.Callback) any);
+            new Reference<>(mSystem, (Actor.Name) any, (Channel<Message>) any);
             maxTimes = 0;
         }};
 
@@ -411,7 +473,7 @@ public class SystemTest extends TestCase {
     @Test(dependsOnGroups = "sanity.system", dependsOnMethods = "stop",
             dataProvider = "immediateness",
             expectedExceptions = UnsupportedOperationException.class,
-            expectedExceptionsMessageRegExp = SYSTEM_STOPPED)
+            expectedExceptionsMessageRegExp = System.STOPPED)
     public final void startAfterStop(final Providers.Boolean immediately) {
         assertThat("system stop", mSystem.stop(immediately.value()), is(true));
         mSystem.start();
@@ -420,7 +482,7 @@ public class SystemTest extends TestCase {
     @Test(dependsOnGroups = "sanity.system", dependsOnMethods = "stop",
             dataProvider = "immediateness",
             expectedExceptions = UnsupportedOperationException.class,
-            expectedExceptionsMessageRegExp = SYSTEM_STOPPED)
+            expectedExceptionsMessageRegExp = System.STOPPED)
     public final void pauseAfterStop(final Providers.Boolean immediately) {
         assertThat("system stop", mSystem.stop(immediately.value()), is(true));
         mSystem.pause();
@@ -438,5 +500,8 @@ public class SystemTest extends TestCase {
     @DataProvider(name = "immediateness")
     private static Object[][] immediateness() {
         return booleans("not immediately", "immediately");
+    }
+
+    private interface Message {
     }
 }

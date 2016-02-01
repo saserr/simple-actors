@@ -17,6 +17,7 @@
 package android.actor.channel;
 
 import android.actor.Channel;
+import android.actor.ChannelProviders;
 import android.actor.Providers;
 import android.actor.TestCase;
 import android.os.Handler;
@@ -37,9 +38,10 @@ import mockit.NonStrictExpectations;
 import mockit.StrictExpectations;
 import mockit.Verifications;
 
-import static android.actor.Channel.Delivery.FAILURE_CAN_RETRY;
-import static android.actor.Channel.Delivery.FAILURE_NO_RETRY;
+import static android.actor.Channel.Delivery.ERROR;
+import static android.actor.Channel.Delivery.FAILURE;
 import static android.actor.Channel.Delivery.SUCCESS;
+import static android.actor.ChannelProviders.immediateness;
 import static android.actor.Providers.booleans;
 import static android.actor.Providers.cartesian;
 import static android.actor.Providers.successOrFailure;
@@ -61,11 +63,15 @@ public class LooperChannelTest extends TestCase {
     @Injectable
     private Looper mLooper;
     @Injectable
-    private Channel<String> mDestination;
+    private Channel<Value> mSource;
+    @Injectable
+    private Channel<Value> mDestination;
+    @Injectable
+    private Value mValue;
     @Injectable
     private Message mMessage;
 
-    private LooperChannel<String> mChannel;
+    private LooperChannel<Value> mChannel;
     private Handler mHandler;
 
     @BeforeMethod
@@ -80,14 +86,14 @@ public class LooperChannelTest extends TestCase {
     @AfterMethod
     public final void tearDown() {
         new Verifications() {{
-            mHandler.hasMessages(LooperChannel.Deliver.Type, any);
+            mHandler.hasMessages(LooperChannel.TYPE, any);
             minTimes = 0;
             mLooper.getThread();
             minTimes = 0;
         }};
 
         verifyNoMoreInteractions(mAllHandlers, mAllSends);
-        verifyNoMoreInteractions(mHandler, mLooper, mDestination);
+        verifyNoMoreInteractions(mHandler, mLooper, mSource, mDestination, mValue);
     }
 
     @Test(dependsOnGroups = "sanity.channel.looper",
@@ -105,7 +111,7 @@ public class LooperChannelTest extends TestCase {
     @Test(dependsOnGroups = "sanity.channel.looper", dataProvider = "messages")
     public final void hasUndeliveredMessages(final Providers.Boolean messages) {
         new NonStrictExpectations() {{
-            mHandler.hasMessages(LooperChannel.Deliver.Type, any);
+            mHandler.hasMessages(LooperChannel.TYPE, any);
             result = messages.value();
         }};
 
@@ -120,8 +126,6 @@ public class LooperChannelTest extends TestCase {
     public final void sendMessage(final Providers.Boolean success,
                                   final Providers.Boolean onSameThread,
                                   final Providers.Boolean messages) {
-        final String message = isA(RandomMessage);
-
         new StrictExpectations(Message.class) {{
             final Message msg = Message.obtain(mHandler, (Runnable) any);
             mHandler.sendMessage(msg);
@@ -130,34 +134,31 @@ public class LooperChannelTest extends TestCase {
 
         mock(mChannel, onSameThread.value(), messages.value());
 
-        final int delivery = success.value() ? SUCCESS : FAILURE_NO_RETRY;
-        assertThat("channel send", mChannel.send(message), is(delivery));
+        final int delivery = success.value() ? SUCCESS : ERROR;
+        assertThat("channel send", mChannel.send(mValue), is(delivery));
     }
 
     @Test(groups = {"sanity", "sanity.channel", "sanity.channel.looper"},
             dataProvider = "success or failure", dataProviderClass = Providers.class)
     public final void sendMessageNoRetry(final Providers.Boolean success) {
-        final String message = isA(RandomMessage);
-        final int delivery = success.value() ? SUCCESS : FAILURE_NO_RETRY;
+        final int delivery = success.value() ? SUCCESS : ERROR;
 
         new StrictExpectations() {{
-            mDestination.send(message);
+            mDestination.send(mValue);
             result = delivery;
         }};
 
         mock(mChannel, true, false);
 
-        assertThat("channel send", mChannel.send(message), is(delivery));
+        assertThat("channel send", mChannel.send(mValue), is(delivery));
     }
 
     @Test(groups = {"sanity", "sanity.channel", "sanity.channel.looper"},
             dataProvider = "success or failure", dataProviderClass = Providers.class)
     public final void sendMessageWithRetry(final Providers.Boolean success) {
-        final String message = isA(RandomMessage);
-
         new StrictExpectations() {{
-            mDestination.send(message);
-            result = FAILURE_CAN_RETRY;
+            mDestination.send(mValue);
+            result = FAILURE;
         }};
 
         new StrictExpectations(Message.class) {{
@@ -168,37 +169,109 @@ public class LooperChannelTest extends TestCase {
 
         mock(mChannel, true, false);
 
-        final int delivery = success.value() ? SUCCESS : FAILURE_NO_RETRY;
-        assertThat("channel send", mChannel.send(message), is(delivery));
+        final int delivery = success.value() ? SUCCESS : ERROR;
+        assertThat("channel send", mChannel.send(mValue), is(delivery));
     }
 
     @Test(dependsOnGroups = "sanity.channel.looper",
-            dataProvider = "(immediateness, messages)")
-    public final void stop(final Providers.Boolean immediately,
+            dataProvider = "(success, immediateness, messages)")
+    public final void stop(final Providers.Boolean success,
+                           final Providers.Boolean immediately,
                            final Providers.Boolean messages) {
         if (immediately.value()) {
             new StrictExpectations() {{
-                mHandler.removeMessages(LooperChannel.Deliver.Type, any);
+                mHandler.removeMessages(LooperChannel.TYPE, any);
+                mDestination.stop(true);
+                result = success.value();
             }};
+        } else {
+            if (messages.value()) {
+                new StrictExpectations(Message.class) {{
+                    final Message msg = Message.obtain(mHandler, (Runnable) any);
+                    mHandler.sendMessage(msg);
+                    result = success.value();
+                }};
+            } else {
+                new StrictExpectations() {{
+                    mDestination.stop(false);
+                    result = success.value();
+                }};
+            }
         }
 
         mock(mChannel, messages.value());
 
-        assertThat("channel send", mChannel.stop(immediately.value()), is(!messages.value()));
+        assertThat("channel stop", mChannel.stop(immediately.value()), is(success.value()));
     }
 
-    @Test(groups = {"sanity", "sanity.channel", "sanity.channel.looper"})
-    public final void runMessage() {
-        final String message = isA(RandomMessage);
-
+    @Test(dependsOnGroups = "sanity.channel.looper", dependsOnMethods = "stop",
+            dataProvider = "(success, immediateness)")
+    public final void doubleStop(final Providers.Boolean success,
+                                 final Providers.Boolean immediately) {
         new StrictExpectations() {{
-            Send.withRetries(mDestination, message);
+            mDestination.stop(false);
+            result = success.value();
         }};
 
-        new LooperChannel.Deliver<>(mDestination, message).run();
+        if (!success.value()) {
+            if (immediately.value()) {
+                new StrictExpectations() {{
+                    mHandler.removeMessages(LooperChannel.TYPE, any);
+                }};
+            }
+
+            new StrictExpectations() {{
+                mDestination.stop(immediately.value());
+                result = true;
+            }};
+        }
+
+        mock(mChannel, false);
+
+        assertThat("channel first stop", mChannel.stop(false), is(success.value()));
+        assertThat("channel second stop", mChannel.stop(immediately.value()), is(true));
     }
 
-    private static final RandomDataGenerator<String> RandomMessage = RandomString;
+    @Test(dependsOnGroups = "sanity.channel.looper", dependsOnMethods = "stop",
+            expectedExceptions = UnsupportedOperationException.class,
+            expectedExceptionsMessageRegExp = Channel.STOPPED)
+    public final void sendAfterStop() {
+        new StrictExpectations() {{
+            mDestination.stop(false);
+            result = true;
+        }};
+
+        mock(mChannel, false);
+
+        assertThat("channel stop", mChannel.stop(false), is(true));
+        mChannel.send(mValue);
+    }
+
+    @Test(groups = {"sanity", "sanity.channel", "sanity.channel.looper"},
+            dataProvider = "delivery", dataProviderClass = ChannelProviders.class)
+    public final void runDeliver(final Providers.Value<Integer> delivery) {
+        new StrictExpectations() {{
+            Send.withRetries(mDestination, mValue);
+            result = delivery.value();
+        }};
+
+        if (delivery.value() == ERROR) {
+            new StrictExpectations() {{
+                mSource.stop(true);
+            }};
+        }
+
+        new LooperChannel.Deliver<>(mSource, mDestination, mValue).run();
+    }
+
+    @Test(dependsOnGroups = "sanity.channel.looper")
+    public final void runStop() {
+        new StrictExpectations() {{
+            mDestination.stop(false);
+        }};
+
+        new LooperChannel.Stop(mDestination).run();
+    }
 
     private static <M> void mock(@NonNull final Channel<M> channel,
                                  final boolean sameThread,
@@ -244,11 +317,19 @@ public class LooperChannelTest extends TestCase {
     }
 
     @NonNull
-    @DataProvider(name = "(immediateness, messages)")
-    private static Object[][] immediatenessAndMessages() {
+    @DataProvider(name = "(success, immediateness, messages)")
+    private static Object[][] successAndImmediatenessAndMessages() {
         return cartesian(
-                booleans("not immediately", "immediately"),
+                successAndImmediateness(),
                 messages());
+    }
+
+    @NonNull
+    @DataProvider(name = "(success, immediateness)")
+    private static Object[][] successAndImmediateness() {
+        return cartesian(
+                successOrFailure(),
+                immediateness());
     }
 
     @NonNull
@@ -256,4 +337,6 @@ public class LooperChannelTest extends TestCase {
     private static Object[][] messages() {
         return booleans("no undelivered messages", "with undelivered messages");
     }
+
+    private interface Value {}
 }

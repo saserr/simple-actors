@@ -20,7 +20,12 @@ import android.actor.executor.Executable;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
+import org.jetbrains.annotations.NonNls;
+
 public interface Executor {
+
+    @NonNls
+    String STOPPED = "Executor is stopped";
 
     @Nullable
     Submission submit(@NonNull final Executable executable);

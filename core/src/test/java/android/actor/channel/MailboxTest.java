@@ -31,14 +31,14 @@ import mockit.Injectable;
 import mockit.Mocked;
 import mockit.StrictExpectations;
 
+import static android.actor.Channel.Delivery.ERROR;
 import static android.actor.Channel.Delivery.SUCCESS;
-import static android.actor.Providers.booleans;
+import static android.actor.ChannelProviders.delivery;
+import static android.actor.ChannelProviders.immediateness;
 import static android.actor.Providers.cartesian;
 import static android.actor.Providers.successOrFailure;
-import static android.actor.channel.MailboxMatchers.attached;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 
 public class MailboxTest extends TestCase {
 
@@ -67,34 +67,6 @@ public class MailboxTest extends TestCase {
     }
 
     @Test(groups = {"sanity", "sanity.channel", "sanity.channel.mailbox"})
-    public final void newlyCreatedMailboxIsUnattached() {
-        assertThat("mailbox", mMailbox, is(not(attached())));
-    }
-
-    @Test(groups = {"sanity", "sanity.channel", "sanity.channel.mailbox"},
-            dependsOnMethods = "attach")
-    public final void isAttachedAfterAttach() {
-        new StrictExpectations() {{
-            mChannelFactory.create(mDestination);
-        }};
-
-        assertThat("mailbox attach", mMailbox.attach(mChannelFactory), is(true));
-        assertThat("mailbox", mMailbox, is(attached()));
-    }
-
-    @Test(groups = {"sanity", "sanity.channel", "sanity.channel.mailbox"},
-            dependsOnMethods = "attach")
-    public final void isAttachedAfterDetach() {
-        new StrictExpectations() {{
-            mChannelFactory.create(mDestination);
-        }};
-
-        assertThat("mailbox attach", mMailbox.attach(mChannelFactory), is(true));
-        mMailbox.detach();
-        assertThat("mailbox", mMailbox, is(not(attached())));
-    }
-
-    @Test(groups = {"sanity", "sanity.channel", "sanity.channel.mailbox"})
     public final void attach() {
         new StrictExpectations() {{
             mChannelFactory.create(mDestination);
@@ -104,93 +76,53 @@ public class MailboxTest extends TestCase {
     }
 
     @Test(dependsOnGroups = "sanity.channel.mailbox",
-            dependsOnMethods = "sendUserMessageWhenUnattached",
-            dataProvider = "success or failure", dataProviderClass = Providers.class)
-    public final void attachEmptiesMailbox(final Providers.Boolean success) {
+            dependsOnMethods = "sendMessageWhenUnattached",
+            dataProvider = "delivery", dataProviderClass = ChannelProviders.class)
+    public final void attachEmptiesMailbox(final Providers.Value<Integer> delivery) {
         new StrictExpectations() {{
-            mMessage.isControl();
-            result = false;
             mChannel = mChannelFactory.create(mDestination);
             Send.withRetries(mChannel, mMessage);
-            result = success.value();
-        }};
-
-        assertThat("message send", mMailbox.send(mMessage), is(SUCCESS));
-        assertThat("mailbox attach", mMailbox.attach(mChannelFactory), is(success.value()));
-    }
-
-    @Test(dependsOnGroups = "sanity.channel.mailbox",
-            dataProvider = "success or failure", dataProviderClass = Providers.class)
-    public final void reattach(final Providers.Boolean success) {
-        new StrictExpectations() {{
-            final Channel<Message> channel = mChannelFactory.create(mDestination);
-            channel.stop(false);
-            result = success.value();
-        }};
-
-        if (success.value()) {
-            new StrictExpectations() {{
-                mChannelFactory.create(mDestination);
-            }};
-        }
-
-        assertThat("mailbox attach", mMailbox.attach(mChannelFactory), is(true));
-        assertThat("mailbox reattach", mMailbox.attach(mChannelFactory), is(success.value()));
-    }
-
-    @Test(groups = {"sanity", "sanity.channel", "sanity.channel.mailbox"},
-            dataProvider = "delivery", dataProviderClass = ChannelProviders.class)
-    public final void sendControlMessageWhenEmptyAndUnattached(final Providers.Value<Integer> delivery) {
-        new StrictExpectations() {{
-            mMessage.isControl();
-            result = true;
-            mDestination.send(mMessage);
             result = delivery.value();
         }};
 
-        assertThat("message send", mMailbox.send(mMessage), is(delivery.value()));
+        assertThat("message send", mMailbox.send(mMessage), is(SUCCESS));
+        final boolean success = delivery.value() == SUCCESS;
+        assertThat("mailbox attach", mMailbox.attach(mChannelFactory), is(success));
     }
 
-    @Test(groups = {"sanity", "sanity.channel", "sanity.channel.mailbox"},
-            dependsOnMethods = "sendUserMessageWhenUnattached")
-    public final void sendControlMessageWhenNotEmptyAndUnattached() {
+    @Test(dependsOnGroups = "sanity.channel.mailbox", dependsOnMethods = "attach",
+            expectedExceptions = UnsupportedOperationException.class,
+            expectedExceptionsMessageRegExp = "Mailbox is already attached!")
+    public final void reattach() {
         new StrictExpectations() {{
-            mMessage.isControl();
-            result = new boolean[]{false, true};
-        }};
-
-        assertThat("message send", mMailbox.send(mMessage), is(SUCCESS));
-        assertThat("message send", mMailbox.send(mMessage), is(SUCCESS));
-    }
-
-    @Test(groups = {"sanity", "sanity.channel", "sanity.channel.mailbox"},
-            dependsOnMethods = "attach",
-            dataProvider = "delivery", dataProviderClass = ChannelProviders.class)
-    public final void sendControlMessageWhenAttached(final Providers.Value<Integer> delivery) {
-        new StrictExpectations() {{
-            mChannel = mChannelFactory.create(mDestination);
-            mChannel.send(mMessage);
-            result = delivery.value();
+            mChannelFactory.create(mDestination);
         }};
 
         assertThat("mailbox attach", mMailbox.attach(mChannelFactory), is(true));
-        assertThat("mailbox send", mMailbox.send(mMessage), is(delivery.value()));
+        mMailbox.attach(mChannelFactory);
+    }
+
+    @Test(dependsOnGroups = "sanity.channel.mailbox", dependsOnMethods = "attach")
+    public final void attachAfterDetach() {
+        new StrictExpectations() {{
+            mChannelFactory.create(mDestination);
+            times = 2;
+        }};
+
+        assertThat("mailbox attach", mMailbox.attach(mChannelFactory), is(true));
+        assertThat("mailbox detach", mMailbox.detach(), is(true));
+        assertThat("mailbox attach", mMailbox.attach(mChannelFactory), is(true));
     }
 
     @Test(groups = {"sanity", "sanity.channel", "sanity.channel.mailbox"})
-    public final void sendUserMessageWhenUnattached() {
-        new StrictExpectations() {{
-            mMessage.isControl();
-            result = false;
-        }};
-
+    public final void sendMessageWhenUnattached() {
         assertThat("mailbox send", mMailbox.send(mMessage), is(SUCCESS));
     }
 
     @Test(groups = {"sanity", "sanity.channel", "sanity.channel.mailbox"},
             dependsOnMethods = "attach",
             dataProvider = "delivery", dataProviderClass = ChannelProviders.class)
-    public final void sendUserMessageWhenAttached(final Providers.Value<Integer> delivery) {
+    public final void sendMessageWhenAttached(final Providers.Value<Integer> delivery) {
         new StrictExpectations() {{
             mChannel = mChannelFactory.create(mDestination);
             mChannel.send(mMessage);
@@ -201,22 +133,43 @@ public class MailboxTest extends TestCase {
         assertThat("mailbox send", mMailbox.send(mMessage), is(delivery.value()));
     }
 
-    @Test(dependsOnGroups = "sanity.channel.mailbox", dependsOnMethods = "sendUserMessageWhenUnattached",
-            dataProvider = "immediateness")
-    public final void stopWhenUnattached(final Providers.Boolean immediately) {
+    @Test(dependsOnGroups = "sanity.channel.mailbox",
+            dependsOnMethods = "sendMessageWhenUnattached",
+            dataProvider = "success or failure", dataProviderClass = Providers.class)
+    public final void immediatelyStopWhenUnattached(final Providers.Boolean success) {
         new StrictExpectations() {{
-            mMessage.isControl();
-            result = false;
+            mDestination.stop(true);
+            result = success.value();
         }};
 
-        if (!immediately.value()) {
+        assertThat("mailbox send", mMailbox.send(mMessage), is(SUCCESS));
+        assertThat("mailbox send", mMailbox.send(mMessage), is(SUCCESS));
+        assertThat("mailbox stop", mMailbox.stop(true), is(success.value()));
+    }
+
+    @Test(dependsOnGroups = "sanity.channel.mailbox",
+            dependsOnMethods = "sendMessageWhenUnattached",
+            dataProvider = "(success, delivery)")
+    public final void notImmediatelyStopWhenUnattached(final Providers.Boolean success,
+                                                       final Providers.Value<Integer> delivery) {
+        new StrictExpectations() {{
+            Send.withRetries(mDestination, mMessage, 1);
+            result = delivery.value();
+        }};
+
+        if (delivery.value() != ERROR) {
             new StrictExpectations() {{
                 Send.withRetries(mDestination, mMessage, 1);
+                result = SUCCESS;
+                mDestination.stop(false);
+                result = success.value();
             }};
         }
 
         assertThat("mailbox send", mMailbox.send(mMessage), is(SUCCESS));
-        assertThat("mailbox stop", mMailbox.stop(immediately.value()), is(true));
+        assertThat("mailbox send", mMailbox.send(mMessage), is(SUCCESS));
+        final boolean stopped = (delivery.value() == ERROR) || success.value();
+        assertThat("mailbox stop", mMailbox.stop(false), is(stopped));
     }
 
     @Test(dependsOnGroups = "sanity.channel.mailbox", dependsOnMethods = "attach",
@@ -231,7 +184,53 @@ public class MailboxTest extends TestCase {
 
         assertThat("mailbox attach", mMailbox.attach(mChannelFactory), is(true));
         assertThat("mailbox stop", mMailbox.stop(immediately.value()), is(success.value()));
-        assertThat("mailbox", mMailbox, is(success.value() ? not(attached()) : attached()));
+    }
+
+    @Test(dependsOnGroups = "sanity.channel.mailbox",
+            dependsOnMethods = "immediatelyStopWhenUnattached",
+            dataProvider = "(success, immediateness)")
+    public final void doubleStop(final Providers.Boolean success,
+                                 final Providers.Boolean immediately) {
+        new StrictExpectations() {{
+            mDestination.stop(true);
+            result = success.value();
+        }};
+
+        if (!success.value()) {
+            new StrictExpectations() {{
+                mDestination.stop(immediately.value());
+                result = true;
+            }};
+        }
+
+        assertThat("mailbox first stop", mMailbox.stop(true), is(success.value()));
+        assertThat("mailbox second stop", mMailbox.stop(immediately.value()), is(true));
+    }
+
+    @Test(dependsOnGroups = "sanity.channel.mailbox",
+            dependsOnMethods = "immediatelyStopWhenUnattached",
+            expectedExceptions = UnsupportedOperationException.class,
+            expectedExceptionsMessageRegExp = Channel.STOPPED)
+    public final void sendAfterStop() {
+        new StrictExpectations() {{
+            mDestination.stop(false);
+            result = true;
+        }};
+
+        assertThat("channel stop", mMailbox.stop(false), is(true));
+        mMailbox.send(mMessage);
+    }
+
+    @Test(dependsOnGroups = "sanity.channel.mailbox",
+            dependsOnMethods = "immediatelyStopWhenUnattached")
+    public final void attachAfterStop() {
+        new StrictExpectations() {{
+            mDestination.stop(false);
+            result = true;
+        }};
+
+        assertThat("channel stop", mMailbox.stop(false), is(true));
+        assertThat("channel attach", mMailbox.attach(mChannelFactory), is(false));
     }
 
     @NonNull
@@ -241,8 +240,10 @@ public class MailboxTest extends TestCase {
     }
 
     @NonNull
-    @DataProvider(name = "immediateness")
-    private static Object[][] immediateness() {
-        return booleans("not immediately", "immediately");
+    @DataProvider(name = "(success, delivery)")
+    private static Object[][] successAndDelivery() {
+        return cartesian(successOrFailure(), delivery());
     }
+
+    private interface Message {}
 }

@@ -27,8 +27,8 @@ public final class Channels {
         return new Channel.Factory() {
             @NonNull
             @Override
-            public <M> Channel<M> create(@NonNull final Channel<M> channel) {
-                return new LooperChannel<>(looper, channel);
+            public <M> Channel<M> create(@NonNull final Channel<M> destination) {
+                return new LooperChannel<>(looper, destination);
             }
         };
     }

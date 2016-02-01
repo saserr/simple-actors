@@ -40,9 +40,6 @@ public class SimpleExecutor implements Executor {
 
     private static final String TAG = SimpleExecutor.class.getSimpleName();
 
-    @NonNls
-    public static final String EXECUTOR_STOPPED = "Executor is stopped";
-
     // TODO use open linked list with O(1) prepend and remove instead of HashSet
     @GuardedBy("mLock")
     private final Collection<Executable> mExecutables = new HashSet<>();
@@ -90,7 +87,7 @@ public class SimpleExecutor implements Executor {
         mLock.lock();
         try {
             if (mStopped) {
-                throw new UnsupportedOperationException(EXECUTOR_STOPPED);
+                throw new UnsupportedOperationException(Executor.STOPPED);
             }
 
             mFactory = factory;
@@ -135,7 +132,7 @@ public class SimpleExecutor implements Executor {
         mLock.lock();
         try {
             if (mStopped) {
-                throw new UnsupportedOperationException(EXECUTOR_STOPPED);
+                throw new UnsupportedOperationException(Executor.STOPPED);
             }
 
             if (mExecutables.add(executable)) {

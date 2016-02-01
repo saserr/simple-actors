@@ -16,6 +16,7 @@
 
 package android.actor;
 
+import android.actor.channel.Mailbox;
 import android.support.annotation.IntDef;
 import android.support.annotation.NonNull;
 import android.util.Log;
@@ -31,7 +32,7 @@ import java.util.Map;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-import static android.util.Log.DEBUG;
+import static android.util.Log.INFO;
 import static java.lang.annotation.RetentionPolicy.SOURCE;
 
 @ThreadSafe
@@ -42,21 +43,14 @@ public class System implements Actor.Repository {
     @NonNls
     private static final String UNKNOWN_STATE = "Unknown state: ";
     @NonNls
-    public static final String SYSTEM_STOPPED = "Actor system is stopped";
+    public static final String STOPPED = "Actor system is stopped";
 
     @NonNull
     private final Executor mExecutor;
 
     @GuardedBy("mLock")
-    private final Map<Actor.Name, Reference<?>> mReferences = new HashMap<>();
+    private final Map<Actor.Name, Entry<?>> mEntries = new HashMap<>();
     private final Lock mLock = new ReentrantLock();
-
-    private final Reference.Callback mCallback = new Reference.Callback() {
-        @Override
-        public void onStop(@NonNull final Actor.Name name) {
-            stop(name);
-        }
-    };
 
     @State
     @GuardedBy("mLock")
@@ -115,9 +109,10 @@ public class System implements Actor.Repository {
             switch (mState) {
                 case State.PAUSED:
                     mState = State.STARTED;
-                    for (final Reference<?> reference : mReferences.values()) {
-                        if (!reference.start(mExecutor)) {
-                            Log.w(TAG, reference + " failed to start"); //NON-NLS
+                    for (final Entry<?> entry : mEntries.values()) {
+                        // TODO don't start the actors if it's paused
+                        if (!entry.start(mExecutor)) {
+                            Log.w(TAG, entry + " failed to start"); //NON-NLS
                             success = false;
                         }
                     }
@@ -126,7 +121,7 @@ public class System implements Actor.Repository {
                     /* do nothing */
                     break;
                 case State.STOPPED:
-                    throw new UnsupportedOperationException(SYSTEM_STOPPED);
+                    throw new UnsupportedOperationException(STOPPED);
                 default:
                     throw new UnsupportedOperationException(UNKNOWN_STATE + mState);
             }
@@ -145,9 +140,9 @@ public class System implements Actor.Repository {
             switch (mState) {
                 case State.STARTED:
                     mState = State.PAUSED;
-                    for (final Reference<?> reference : mReferences.values()) {
-                        if (!reference.pause()) {
-                            Log.w(TAG, reference + " failed to pause"); //NON-NLS
+                    for (final Entry<?> entry : mEntries.values()) {
+                        if (!entry.pause()) {
+                            Log.w(TAG, entry + " failed to pause"); //NON-NLS
                             success = false;
                         }
                     }
@@ -156,7 +151,7 @@ public class System implements Actor.Repository {
                     /* do nothing */
                     break;
                 case State.STOPPED:
-                    throw new UnsupportedOperationException(SYSTEM_STOPPED);
+                    throw new UnsupportedOperationException(STOPPED);
                 default:
                     throw new UnsupportedOperationException(UNKNOWN_STATE + mState);
             }
@@ -176,13 +171,13 @@ public class System implements Actor.Repository {
                 case State.STARTED:
                 case State.PAUSED:
                     mState = State.STOPPED;
-                    for (final Reference<?> reference : mReferences.values()) {
-                        if (!reference.stop(immediately)) {
-                            Log.w(TAG, reference + " failed to stop"); //NON-NLS
+                    for (final Entry<?> entry : mEntries.values()) {
+                        if (!entry.stop(immediately)) {
+                            Log.w(TAG, entry + " failed to stop"); //NON-NLS
                             success = false;
                         }
                     }
-                    mReferences.clear();
+                    mEntries.clear();
                     break;
                 case State.STOPPED:
                     /* do nothing */
@@ -197,68 +192,112 @@ public class System implements Actor.Repository {
         return success;
     }
 
-    @NonNull
-    @Override
-    public final <M> Reference<M> register(@NonNls @NonNull final String name,
-                                           @NonNull final Actor<M> actor) {
-        return register(new Actor.Name(null, name), actor);
-    }
-
-    @NonNull
-    private <M> Reference<M> register(@NonNull final Actor.Name name, @NonNull final Actor<M> actor) {
-        final Context context = new Context(name, this);
-        final Reference<M> reference;
+    public final boolean start(@NonNull final Actor.Name name) {
+        boolean success = true;
 
         mLock.lock();
         try {
-            if (mState == State.STOPPED) {
-                throw new UnsupportedOperationException(SYSTEM_STOPPED);
-            }
-            if (mReferences.containsKey(name)) {
-                throw new IllegalArgumentException(name + " is already registered!");
-            }
-
-            // TODO use factory
-            reference = new Reference<>(context, actor, mCallback);
-
-            if (mState == State.STARTED) {
-                if (reference.start(mExecutor)) {
-                    mReferences.put(name, reference);
-                } else {
-                    throw new UnsupportedOperationException(reference + " could not be started!");
-                }
-            } else {
-                mReferences.put(name, reference);
-            }
-
-            if (Log.isLoggable(TAG, DEBUG)) {
-                Log.d(TAG, name + " added"); //NON-NLS
-            }
-        } finally {
-            mLock.unlock();
-        }
-
-        return reference;
-    }
-
-    private void stop(@NonNull final Actor.Name name) {
-        mLock.lock();
-        try {
-            if (mReferences.containsKey(name)) {
-                mReferences.remove(name);
-                if (Log.isLoggable(TAG, DEBUG)) {
-                    Log.d(TAG, name + " removed"); //NON-NLS
-                }
-
-                for (final Map.Entry<Actor.Name, Reference<?>> other : mReferences.entrySet()) {
-                    if (name.isParentOf(other.getKey())) {
-                        other.getValue().stop(true);
+            if (mEntries.containsKey(name)) {
+                // TODO don't start the actor if system is paused
+                success = mEntries.get(name).start(mExecutor);
+                if (success) {
+                    // TODO speed up by having the parent actor know its children
+                    for (final Map.Entry<Actor.Name, Entry<?>> other : mEntries.entrySet()) {
+                        if (name.isParentOf(other.getKey())) {
+                            success = success && other.getValue().start(mExecutor);
+                        }
                     }
                 }
             }
         } finally {
             mLock.unlock();
         }
+
+        return success;
+    }
+
+    public final boolean pause(@NonNull final Actor.Name name) {
+        boolean success = true;
+
+        mLock.lock();
+        try {
+            if (mEntries.containsKey(name)) {
+                success = mEntries.get(name).pause();
+                if (success) {
+                    // TODO speed up by having the parent actor know its children
+                    for (final Map.Entry<Actor.Name, Entry<?>> other : mEntries.entrySet()) {
+                        if (name.isParentOf(other.getKey())) {
+                            success = success && other.getValue().pause();
+                        }
+                    }
+                }
+            }
+        } finally {
+            mLock.unlock();
+        }
+
+        return success;
+    }
+
+    public final boolean stop(@NonNull final Actor.Name name) {
+        boolean success = true;
+
+        mLock.lock();
+        try {
+            if (mEntries.containsKey(name)) {
+                success = mEntries.remove(name).stop(false);
+                if (success) {
+                    // TODO speed up by having the parent actor know its children
+                    for (final Map.Entry<Actor.Name, Entry<?>> other : mEntries.entrySet()) {
+                        if (name.isParentOf(other.getKey())) {
+                            success = success && other.getValue().stop(true);
+                        }
+                    }
+                }
+            }
+        } finally {
+            mLock.unlock();
+        }
+
+        return success;
+    }
+
+    @NonNull
+    @Override
+    public final <M> Reference<M> register(@NonNls @NonNull final String name,
+                                           @NonNull final Actor<M> actor) {
+        mLock.lock();
+        try {
+            return register(new Actor.Name(null, name), actor);
+        } finally {
+            mLock.unlock();
+        }
+    }
+
+    @NonNull
+    @GuardedBy("mLock")
+    private <M> Reference<M> register(@NonNull final Actor.Name name,
+                                      @NonNull final Actor<M> actor) {
+        if (mState == State.STOPPED) {
+            throw new UnsupportedOperationException(STOPPED);
+        }
+        if (mEntries.containsKey(name)) {
+            throw new IllegalArgumentException(name + " is already registered!");
+        }
+
+        final Entry<M> entry = new Entry<>(this, name, actor);
+
+        if (mState == State.STARTED) {
+            if (entry.start(mExecutor)) {
+                mEntries.put(name, entry);
+            } else {
+                throw new UnsupportedOperationException(entry + " could not be started!");
+            }
+        } else {
+            mEntries.put(name, entry);
+        }
+
+        return entry.getReference();
     }
 
     @NonNull
@@ -275,18 +314,34 @@ public class System implements Actor.Repository {
     }
 
     @ThreadSafe
-    private static final class Context implements android.actor.Context {
+    private static final class Entry<M> implements Context {
 
-        @NonNull
-        private final Actor.Name mName;
         @NonNull
         private final System mSystem;
+        @NonNull
+        private final Actor.Name mName;
 
-        private Context(@NonNull final Actor.Name name, @NonNull final System system) {
+        @NonNull
+        private final Actor.Channel<M> mChannel;
+        @NonNull
+        private final Mailbox<M> mMailbox;
+        @NonNull
+        private final Mailbox.Runner mRunner;
+        @NonNull
+        private final Reference<M> mReference;
+
+        private Entry(@NonNull final System system,
+                      @NonNull final Actor.Name name,
+                      @NonNull final Actor<M> actor) {
             super();
 
-            mName = name;
             mSystem = system;
+            mName = name;
+            mChannel = new Actor.Channel<>(name, actor);
+            mMailbox = new Mailbox<>(mChannel);
+            mRunner = new Mailbox.Runner(mMailbox);
+            // TODO use factory
+            mReference = new Reference<>(system, name, mMailbox);
         }
 
         @NonNull
@@ -302,10 +357,38 @@ public class System implements Actor.Repository {
         }
 
         @NonNull
+        public Reference<M> getReference() {
+            return mReference;
+        }
+
+        public boolean start(@NonNull final Executor executor) {
+            return mChannel.start(this, mReference) && mRunner.start(executor);
+        }
+
+        public boolean pause() {
+            final boolean success = mRunner.stop();
+            if (success && Log.isLoggable(TAG, INFO)) {
+                Log.i(TAG, this + " paused"); //NON-NLS
+            }
+            return success;
+        }
+
+        public boolean stop(final boolean immediately) {
+            return mMailbox.stop(immediately) && mRunner.stop();
+        }
+
+        @NonNull
         @Override
-        public <M> Reference<M> register(@NonNls @NonNull final String name,
-                                         @NonNull final Actor<M> actor) {
+        public <T> Reference<T> register(@NonNls @NonNull final String name,
+                                         @NonNull final Actor<T> actor) {
             return mSystem.register(new Actor.Name(mName, name), actor);
+        }
+
+        @NonNls
+        @NonNull
+        @Override
+        public String toString() {
+            return mChannel.toString();
         }
     }
 }

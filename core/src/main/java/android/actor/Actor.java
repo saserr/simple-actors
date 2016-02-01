@@ -16,10 +16,24 @@
 
 package android.actor;
 
+import android.support.annotation.IntDef;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.util.Log;
+
+import net.jcip.annotations.GuardedBy;
+import net.jcip.annotations.ThreadSafe;
 
 import org.jetbrains.annotations.NonNls;
+
+import java.lang.annotation.Retention;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+
+import static android.util.Log.DEBUG;
+import static android.util.Log.INFO;
+import static java.lang.annotation.RetentionPolicy.SOURCE;
 
 public abstract class Actor<M> {
 
@@ -38,6 +52,7 @@ public abstract class Actor<M> {
                                   @NonNull final Actor<M> actor);
     }
 
+    @ThreadSafe
     public static class Name {
 
         @NonNls
@@ -95,6 +110,155 @@ public abstract class Actor<M> {
         @Override
         public final String toString() {
             return ((mParent == null) ? "" : mParent.toString()) + SEPARATOR + mPart;
+        }
+    }
+
+    @ThreadSafe
+    public static class Channel<M> implements android.actor.Channel<M> {
+
+        private static final String TAG = Channel.class.getSimpleName();
+
+        @NonNull
+        private final Name mName;
+        @NonNull
+        @GuardedBy("mLock")
+        private final Actor<M> mActor;
+
+        private final Semaphore mDirectCall = new Semaphore(1);
+        private final Lock mLock = new ReentrantLock();
+
+        @State
+        @GuardedBy("mLock")
+        private int mState = State.INITIALIZED;
+
+        public Channel(@NonNull final Name name, @NonNull final Actor<M> actor) {
+            super();
+
+            mName = name;
+            mActor = actor;
+        }
+
+        @Override
+        public final int send(@NonNls @NonNull final M message) {
+            int result = Delivery.SUCCESS;
+
+            mLock.lock();
+            try {
+                if (mState == State.INITIALIZED) {
+                    throw new UnsupportedOperationException(this + " is not started!");
+                }
+                if (mState != State.STARTED) {
+                    throw new UnsupportedOperationException(this + " is stopped!");
+                }
+
+                if (mDirectCall.tryAcquire()) {
+                    try {
+                        mActor.onMessage(message);
+                    } catch (final Throwable error) {
+                        Log.e(TAG, this + " failed to receive message " + message + "! Stopping", error); // NON-NLS
+                        if (!stop(true)) {
+                            Log.e(TAG, this + " couldn't be stopped after the failure! Ignoring the failure"); // NON-NLS
+                        }
+                        result = Delivery.ERROR;
+                    } finally {
+                        mDirectCall.release();
+                    }
+                } else {
+                    result = Delivery.FAILURE;
+                }
+            } finally {
+                mLock.unlock();
+            }
+
+            if ((result == Delivery.SUCCESS) && Log.isLoggable(TAG, DEBUG)) {
+                Log.d(TAG, this + " handled user message " + message); //NON-NLS
+            }
+
+            return result;
+        }
+
+        public final boolean start(@NonNull final Context context,
+                                   @NonNull final Reference<M> reference) {
+            boolean success = false;
+
+            mLock.lock();
+            try {
+                if (mState == State.STARTED) {
+                    success = true;
+                } else {
+                    if (mState != State.INITIALIZED) {
+                        throw new UnsupportedOperationException(this + " is stopped!");
+                    }
+
+                    try {
+                        mActor.postStart(context, reference);
+                        success = true;
+                    } catch (final Throwable error) {
+                        Log.e(TAG, this + " failed during start!", error); // NON-NLS
+                    }
+                }
+            } finally {
+                mLock.unlock();
+            }
+
+            if (success && Log.isLoggable(TAG, INFO)) {
+                Log.i(TAG, this + " started"); //NON-NLS
+            }
+
+            return success;
+        }
+
+        @Override
+        public final boolean stop(final boolean immediately) {
+            @State final int previous;
+            boolean success = false;
+
+            mLock.lock();
+            try {
+                previous = mState;
+                switch (mState) {
+                    case State.STARTED:
+                        try {
+                            mActor.preStop();
+                            success = true;
+                        } catch (final Throwable error) {
+                            Log.e(TAG, this + " failed during stop!", error); // NON-NLS
+                        }
+                        break;
+                    case State.INITIALIZED:
+                    case State.STOPPED:
+                        success = true;
+                        break;
+                    default:
+                        throw new IllegalStateException("Unknown reference state: " + mState);
+                }
+                if (success) {
+                    mState = State.STOPPED;
+                }
+            } finally {
+                mLock.unlock();
+            }
+
+            if ((previous != State.STOPPED) && success && Log.isLoggable(TAG, INFO)) {
+                Log.i(TAG, this + " stopped"); //NON-NLS
+            }
+
+            return success;
+        }
+
+        @NonNls
+        @NonNull
+        @Override
+        public final String toString() {
+            return "Actor(" + mName + ')';
+        }
+
+        @Retention(SOURCE)
+        @IntDef({State.INITIALIZED, State.STARTED, State.STOPPED})
+        private @interface State {
+            int INITIALIZED = 1;
+            int STARTED = 2;
+            int STOPPED = 3;
         }
     }
 }

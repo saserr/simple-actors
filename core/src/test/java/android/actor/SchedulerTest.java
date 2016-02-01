@@ -18,14 +18,12 @@ package android.actor;
 
 import android.os.SystemClock;
 
-import org.hamcrest.Matchers;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.regex.Matcher;
 
 import mockit.Injectable;
 import mockit.Mocked;
@@ -65,8 +63,6 @@ public class SchedulerTest extends TestCase {
         final long delay = isA(RandomDelay);
 
         new StrictExpectations() {{
-            mReference.isStopped();
-            result = false;
             SystemClock.uptimeMillis();
             result = new long[]{0, delay};
             mReference.tell(message);
@@ -82,8 +78,6 @@ public class SchedulerTest extends TestCase {
         final Runnable runnable = Captured.as(Runnable.class);
 
         new StrictExpectations() {{
-            mReference.isStopped();
-            result = false;
             SystemClock.uptimeMillis();
             result = new long[]{0, 0};
             mExecutorService.schedule(withArgThat(is(Captured.into(runnable))), delay, MILLISECONDS);
@@ -99,8 +93,6 @@ public class SchedulerTest extends TestCase {
         final long delay = isA(RandomDelay);
 
         new StrictExpectations() {{
-            mReference.isStopped();
-            result = false;
             SystemClock.uptimeMillis();
             result = new long[]{0, 0};
             final Future<?> future = mExecutorService.schedule((Runnable) any, delay, MILLISECONDS);

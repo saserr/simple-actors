@@ -31,9 +31,15 @@ public final class ChannelProviders {
     public static Object[][] delivery() {
         return provider(
                 value("success", Channel.Delivery.SUCCESS),
-                value("failure can retry", Channel.Delivery.FAILURE_CAN_RETRY),
-                value("failure no retry", Channel.Delivery.FAILURE_NO_RETRY)
+                value("failure", Channel.Delivery.FAILURE),
+                value("error", Channel.Delivery.ERROR)
         );
+    }
+
+    @NonNull
+    @DataProvider(name = "immediateness")
+    public static Object[][] immediateness() {
+        return booleans("not immediately", "immediately");
     }
 
     private ChannelProviders() {

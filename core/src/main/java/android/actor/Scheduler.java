@@ -131,10 +131,6 @@ public class Scheduler extends Actor<Scheduler.Delay<?>> {
                       @NonNull final TimeUnit unit) {
             super();
 
-            if (reference.isStopped()) {
-                throw new UnsupportedOperationException(reference + " is stopped");
-            }
-
             mReference = reference;
             mMessage = message;
             mAtTime = uptimeMillis() + MILLISECONDS.convert(duration, unit);

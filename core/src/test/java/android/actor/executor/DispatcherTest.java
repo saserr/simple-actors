@@ -115,7 +115,7 @@ public class DispatcherTest extends TestCase {
             thread.start();
             Looper.prepare();
             mLooper = Looper.myLooper();
-            final Channel.Factory factory = Channels.from(mLooper);
+            final Channel.Factory factory = Channels.from(notNull(mLooper));
             mExecutor.start(factory);
             result = success.value();
         }};

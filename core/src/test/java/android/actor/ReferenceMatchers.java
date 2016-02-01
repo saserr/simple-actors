@@ -30,11 +30,6 @@ public final class ReferenceMatchers {
         return new HasName(name);
     }
 
-    @NonNull
-    public static Matcher<Reference<?>> stopped() {
-        return new Stopped();
-    }
-
     private static final class HasName extends TypeSafeMatcher<Reference<?>> {
 
         @NonNull
@@ -60,25 +55,6 @@ public final class ReferenceMatchers {
         @Override
         public void describeTo(@NonNls final Description description) {
             description.appendText("has name " + mName); //NON-NLS
-        }
-    }
-
-    private static final class Stopped extends TypeSafeMatcher<Reference<?>> {
-
-        @Override
-        protected boolean matchesSafely(final Reference<?> reference) {
-            return reference.isStopped();
-        }
-
-        @Override
-        protected void describeMismatchSafely(final Reference<?> reference,
-                                              final Description mismatchDescription) {
-            mismatchDescription.appendText("was not stopped"); //NON-NLS
-        }
-
-        @Override
-        public void describeTo(@NonNull final Description description) {
-            description.appendText("stopped"); //NON-NLS
         }
     }
 

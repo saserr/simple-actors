@@ -19,11 +19,16 @@ package android.actor;
 import android.support.annotation.IntDef;
 import android.support.annotation.NonNull;
 
+import org.jetbrains.annotations.NonNls;
+
 import java.lang.annotation.Retention;
 
 import static java.lang.annotation.RetentionPolicy.SOURCE;
 
 public interface Channel<M> {
+
+    @NonNls
+    String STOPPED = "Channel is stopped";
 
     @Delivery
     int send(@NonNull final M message);
@@ -31,15 +36,15 @@ public interface Channel<M> {
     boolean stop(final boolean immediately);
 
     @Retention(SOURCE)
-    @IntDef({Delivery.SUCCESS, Delivery.FAILURE_CAN_RETRY, Delivery.FAILURE_NO_RETRY})
+    @IntDef({Delivery.SUCCESS, Delivery.FAILURE, Delivery.ERROR})
     @interface Delivery {
         int SUCCESS = 1;
-        int FAILURE_CAN_RETRY = 2;
-        int FAILURE_NO_RETRY = 3;
+        int FAILURE = 2;
+        int ERROR = 3;
     }
 
     interface Factory {
         @NonNull
-        <M> Channel<M> create(@NonNull final Channel<M> channel);
+        <M> Channel<M> create(@NonNull final Channel<M> destination);
     }
 }
