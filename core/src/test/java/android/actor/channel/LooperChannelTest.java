@@ -30,11 +30,11 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
+import mockit.Expectations;
 import mockit.Injectable;
 import mockit.Mock;
 import mockit.MockUp;
 import mockit.Mocked;
-import mockit.NonStrictExpectations;
 import mockit.StrictExpectations;
 import mockit.Verifications;
 
@@ -110,7 +110,7 @@ public class LooperChannelTest extends TestCase {
 
     @Test(dependsOnGroups = "sanity.channel.looper", dataProvider = "messages")
     public final void hasUndeliveredMessages(final Providers.Boolean messages) {
-        new NonStrictExpectations() {{
+        new Expectations() {{
             mHandler.hasMessages(LooperChannel.TYPE, any);
             result = messages.value();
         }};
