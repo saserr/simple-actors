@@ -80,7 +80,10 @@ public class SchedulerTest extends TestCase {
         new StrictExpectations() {{
             SystemClock.uptimeMillis();
             result = new long[]{0, 0};
-            mExecutorService.schedule(withArgThat(is(Captured.into(runnable))), delay, MILLISECONDS);
+            mExecutorService.schedule(
+                    (Runnable) withArgThat(is(Captured.into(runnable))),
+                    delay,
+                    MILLISECONDS);
             mReference.tell(message);
         }};
 

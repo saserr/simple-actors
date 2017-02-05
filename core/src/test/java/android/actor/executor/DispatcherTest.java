@@ -111,7 +111,7 @@ public class DispatcherTest extends TestCase {
         final Runnable runnable = Captured.as(Runnable.class);
 
         new StrictExpectations() {{
-            final Thread thread = new Thread(withArgThat(is(Captured.into(runnable))));
+            final Thread thread = new Thread((Runnable) withArgThat(is(Captured.into(runnable))));
             thread.start();
             Looper.prepare();
             mLooper = Looper.myLooper();
@@ -142,7 +142,7 @@ public class DispatcherTest extends TestCase {
         final Runnable runnable = Captured.as(Runnable.class);
 
         new StrictExpectations() {{
-            final Thread thread = new Thread(withArgThat(is(Captured.into(runnable))));
+            final Thread thread = new Thread((Runnable) withArgThat(is(Captured.into(runnable))));
             thread.start();
             Looper.prepare();
             Looper.myLooper();
