@@ -44,6 +44,10 @@ public class SameThreadDelivererTest extends Scenario {
             when("stopped", () -> {
                 channel.stop();
 
+                should("stop the actor", () -> {
+                    assertThat(actor.isStopped()).isTrue();
+                });
+
                 should("fail to send a message", () -> {
                     assertThat(channel.send(new Message())).isFalse();
                     assertThat(actor.getReceivedMessages()).isEmpty();

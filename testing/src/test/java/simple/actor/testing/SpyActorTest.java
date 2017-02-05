@@ -34,12 +34,20 @@ public class SpyActorTest extends Scenario {
                 assertThat(actor.isStarted()).isFalse();
             });
 
+            should("not be stopped", () -> {
+                assertThat(actor.isStopped()).isFalse();
+            });
+
             should("have no received messages", () -> {
                 assertThat(actor.getReceivedMessages()).isEmpty();
             });
 
             should("complain if it receives a message because it is not started", () -> {
                 assertThrows(() -> actor.onMessage(new Message()));
+            });
+
+            should("complain if stopped because it is not started", () -> {
+                assertThrows(actor::onStop);
             });
 
             when("started", () -> {
@@ -53,12 +61,32 @@ public class SpyActorTest extends Scenario {
                     assertThrows(() -> actor.onStart(new SpyChannel<>(), new SpyContext()));
                 });
 
+                should("not be stopped", () -> {
+                    assertThat(actor.isStopped()).isFalse();
+                });
+
                 and("it receives a message", () -> {
                     final Message message = new Message();
                     actor.onMessage(message);
 
                     should("remember it", () -> {
                         assertThat(actor.getReceivedMessages()).containsExactly(message);
+                    });
+                });
+
+                and("stopped", () -> {
+                    actor.onStop();
+
+                    should("remember it", () -> {
+                        assertThat(actor.isStopped()).isTrue();
+                    });
+
+                    should("complain if it receives a message because it is stopped", () -> {
+                        assertThrows(() -> actor.onMessage(new Message()));
+                    });
+
+                    should("complain if stopped again", () -> {
+                        assertThrows(actor::onStop);
                     });
                 });
             });

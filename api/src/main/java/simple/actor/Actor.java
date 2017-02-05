@@ -35,4 +35,10 @@ public abstract class Actor<M> {
      * @param context the view of actor's group.
      */
     protected void onStart(final Channel<M> self, final Context context) {}
+
+    /**
+     * Callback for when actor is stopped. Actor will be asynchronously stopped when its {@link
+     * Channel} is {@link Channel#stop stopped}.
+     */
+    protected void onStop() {}
 }

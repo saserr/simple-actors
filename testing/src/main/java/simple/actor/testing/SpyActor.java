@@ -43,6 +43,9 @@ public final class SpyActor<M> extends Actor<M> {
     @GuardedBy("mLock")
     private boolean mStarted = false;
 
+    @GuardedBy("mLock")
+    private boolean mStopped = false;
+
     /**
      * Remembers the received message.
      *
@@ -53,6 +56,9 @@ public final class SpyActor<M> extends Actor<M> {
         synchronized (mLock) {
             if (!mStarted) {
                 throw new IllegalStateException("message received before actor has been started");
+            }
+            if (mStopped) {
+                throw new IllegalStateException("message received after actor has been stopped");
             }
             mReceived.add(message);
         }
@@ -73,6 +79,24 @@ public final class SpyActor<M> extends Actor<M> {
         }
     }
 
+    /**
+     * Remembers that actor has been started.
+     *
+     * @throws IllegalStateException if actor is started more than once.
+     */
+    @Override
+    protected void onStop() {
+        synchronized (mLock) {
+            if (!mStarted) {
+                throw new IllegalStateException("actor stopped before it has been started");
+            }
+            if (mStopped) {
+                throw new IllegalStateException("actor stopped multiple times");
+            }
+            mStopped = true;
+        }
+    }
+
     /** Returns all received messages. */
     public List<M> getReceivedMessages() {
         synchronized (mLock) {
@@ -84,6 +108,13 @@ public final class SpyActor<M> extends Actor<M> {
     public boolean isStarted() {
         synchronized (mLock) {
             return mStarted;
+        }
+    }
+
+    /** Returns {@code true} if actor has been stopped. */
+    public boolean isStopped() {
+        synchronized (mLock) {
+            return mStopped;
         }
     }
 }

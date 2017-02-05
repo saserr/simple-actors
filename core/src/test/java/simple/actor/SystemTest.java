@@ -38,6 +38,10 @@ public class SystemTest extends Scenario {
                 assertThat(actor.isStarted()).isTrue();
             });
 
+            should("not be stopped", () -> {
+                assertThat(actor.isStopped()).isFalse();
+            });
+
             should("succeed to send and deliver a message ", () -> {
                 final Message message = new Message();
                 assertThat(channel.send(message)).isTrue();
@@ -47,6 +51,10 @@ public class SystemTest extends Scenario {
             and("channel is stopped", () -> {
                 channel.stop();
 
+                should("stop the actor", () -> {
+                    assertThat(actor.isStopped()).isTrue();
+                });
+
                 should("fail to send a message", () -> {
                     assertThat(channel.send(new Message())).isFalse();
                     assertThat(actor.getReceivedMessages()).isEmpty();
@@ -55,6 +63,10 @@ public class SystemTest extends Scenario {
 
             and("system is stopped", () -> {
                 system.stop();
+
+                should("stop the actor", () -> {
+                    assertThat(actor.isStopped()).isTrue();
+                });
 
                 should("fail to send a message", () -> {
                     assertThat(channel.send(new Message())).isFalse();
@@ -97,6 +109,34 @@ public class SystemTest extends Scenario {
 
                     assertThat(actor.getReceivedMessages()).containsExactly(message);
                 });
+
+                and("actor's channel is stopped", () -> {
+                    channel.stop();
+
+                    should("not stop the actor immediately", () -> {
+                        assertThat(actor.isStopped()).isFalse();
+                    });
+
+                    should("stop the actor after system is resumed", () -> {
+                        system.resume();
+
+                        assertThat(actor.isStopped()).isTrue();
+                    });
+                });
+
+                and("then stopped", () -> {
+                    system.stop();
+
+                    should("not stop the actor immediately", () -> {
+                        assertThat(actor.isStopped()).isFalse();
+                    });
+
+                    should("stop the actor after system is resumed", () -> {
+                        system.resume();
+
+                        assertThat(actor.isStopped()).isTrue();
+                    });
+                });
             });
         });
 
@@ -112,6 +152,10 @@ public class SystemTest extends Scenario {
 
                     should("not be started", () -> {
                         assertThat(actor.isStarted()).isFalse();
+                    });
+
+                    should("not be stopped", () -> {
+                        assertThat(actor.isStopped()).isFalse();
                     });
 
                     should("succeed to send a message but not deliver it", () -> {
@@ -133,6 +177,12 @@ public class SystemTest extends Scenario {
 
                             assertThat(actor.isStarted()).isTrue();
                         });
+
+                        should("stop the actor after system is resumed", () -> {
+                            system.resume();
+
+                            assertThat(actor.isStopped()).isTrue();
+                        });
                     });
 
                     and("system is stopped", () -> {
@@ -142,6 +192,12 @@ public class SystemTest extends Scenario {
                             system.resume();
 
                             assertThat(actor.isStarted()).isTrue();
+                        });
+
+                        should("stop the actor after system is resumed", () -> {
+                            system.resume();
+
+                            assertThat(actor.isStopped()).isTrue();
                         });
                     });
 

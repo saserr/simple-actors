@@ -80,7 +80,10 @@ public class SameThreadDeliverer<M> implements Channel<M> {
     public void stop() {
         mSemaphore.acquireUninterruptibly();
         try {
-            mStopped = true;
+            if (!mStopped) {
+                mStopped = true;
+                mActor.onStop();
+            }
         } finally {
             mSemaphore.release();
         }

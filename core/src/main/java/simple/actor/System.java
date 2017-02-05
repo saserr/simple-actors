@@ -139,8 +139,10 @@ public final class System implements Context {
      * any of the registered {@code Actors} will fail. Furthermore, any attempt to register an
      * {@code Actor} will throw an {@link IllegalStateException}.
      *
-     * <p>If system is {@link #pause paused}, pending messages will still be {@link Actor#onMessage
-     * delivered} to its {@code Actors} once the system is {@link #resume resumed}.
+     * <p>If system is {@link #resume running}, all {@code Actors} will be asynchronously {@link
+     * Actor#onStop stopped}. If system is {@link #pause paused}, the {@code Actors} will still be
+     * stopped and pending messages will be {@link Actor#onMessage delivered} once the system is
+     * {@link #resume resumed}.
      */
     public void stop() {
         synchronized (mLock) {
@@ -222,12 +224,16 @@ public final class System implements Context {
         /**
          * {@inheritDoc}
          *
-         * <p>If {@link Channel} is {@link #pause paused}, pending messages will still be {@link
-         * Actor#onMessage delivered} once @code Channel} is {@link #resume resumed}.
+         * <p>If {@link Channel} is {@link #resume running}, {@link Actor} will be asynchronously
+         * {@link Actor#onStop stopped}. If {@code Channel} is {@link #pause paused}, the {@code
+         * Actor} will be stopped and pending messages will be {@link Actor#onMessage delivered}
+         * once {@code Channel} is {@link #resume resumed}.
          */
         @Override
         public void stop() {
-            mMailbox.stop();
+            if (mMailbox.send(mActor::onStop)) {
+                mMailbox.stop();
+            }
         }
 
         /**
