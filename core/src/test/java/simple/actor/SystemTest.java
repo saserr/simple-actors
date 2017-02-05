@@ -34,6 +34,10 @@ public class SystemTest extends Scenario {
             final SpyActor<Message> actor = new SpyActor<>();
             final Channel<Message> channel = system.register(actor);
 
+            should("be started", () -> {
+                assertThat(actor.isStarted()).isTrue();
+            });
+
             should("succeed to send and deliver a message ", () -> {
                 final Message message = new Message();
                 assertThat(channel.send(message)).isTrue();
@@ -106,9 +110,39 @@ public class SystemTest extends Scenario {
                     final SpyActor<Object> actor = new SpyActor<>();
                     final Channel<Object> channel = system.register(actor);
 
+                    should("not be started", () -> {
+                        assertThat(actor.isStarted()).isFalse();
+                    });
+
                     should("succeed to send a message but not deliver it", () -> {
                         assertThat(channel.send(new Object())).isTrue();
                         assertThat(actor.getReceivedMessages()).isEmpty();
+                    });
+
+                    should("be started after being resumed", () -> {
+                        system.resume();
+
+                        assertThat(actor.isStarted()).isTrue();
+                    });
+
+                    and("actor's channel is stopped", () -> {
+                        channel.stop();
+
+                        should("start the actor after system is resumed", () -> {
+                            system.resume();
+
+                            assertThat(actor.isStarted()).isTrue();
+                        });
+                    });
+
+                    and("system is stopped", () -> {
+                        system.stop();
+
+                        should("start the actor after system is resumed", () -> {
+                            system.resume();
+
+                            assertThat(actor.isStarted()).isTrue();
+                        });
                     });
 
                     should("deliver the message after being resumed", () -> {

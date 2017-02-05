@@ -31,6 +31,10 @@ public class SameThreadDelivererTest extends Scenario {
             final SpyActor<Message> actor = new SpyActor<>();
             final SameThreadDeliverer<Message> channel = new SameThreadDeliverer<>(actor);
 
+            should("start the actor", () -> {
+                assertThat(actor.isStarted()).isTrue();
+            });
+
             should("succeed to send and deliver a message ", () -> {
                 final Message message = new Message();
                 assertThat(channel.send(message)).isTrue();

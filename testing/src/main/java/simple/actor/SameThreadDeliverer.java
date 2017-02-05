@@ -18,6 +18,8 @@ package simple.actor;
 
 import java.util.concurrent.Semaphore;
 
+import simple.actor.testing.SpyContext;
+
 /**
  * A {@link Channel} that {@link Actor#onMessage delivers} messages to an {@link
  * Actor} on the calling thread. This {@code Channel} should only be used for testing.
@@ -39,7 +41,24 @@ public class SameThreadDeliverer<M> implements Channel<M> {
      * @param actor the {@code Actor} that will receive all sent messages.
      */
     public SameThreadDeliverer(final Actor<M> actor) {
+        this(actor, new SpyContext());
+    }
+
+    /**
+     * Creates a {@link Channel} that will {@link Actor#onMessage deliver} messages to given {@link
+     * Actor} on the calling thread.
+     *
+     * @param actor   the {@code Actor} that will receive all sent messages.
+     * @param context the view of actor's group.
+     */
+    public SameThreadDeliverer(final Actor<M> actor, final Context context) {
         mActor = actor;
+        mSemaphore.acquireUninterruptibly();
+        try {
+            mActor.onStart(this, context);
+        } finally {
+            mSemaphore.release();
+        }
     }
 
     @Override

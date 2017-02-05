@@ -20,6 +20,7 @@ import org.junit.runner.RunWith;
 
 import alioli.Scenario;
 
+import static alioli.Asserts.assertThrows;
 import static com.google.common.truth.Truth.assertThat;
 
 /** Tests for {@link SpyActor}. */
@@ -29,16 +30,36 @@ public class SpyActorTest extends Scenario {
         subject("spy actor", () -> {
             final SpyActor<Message> actor = new SpyActor<>();
 
+            should("not be started", () -> {
+                assertThat(actor.isStarted()).isFalse();
+            });
+
             should("have no received messages", () -> {
                 assertThat(actor.getReceivedMessages()).isEmpty();
             });
 
-            when("it receives a message", () -> {
-                final Message message = new Message();
-                actor.onMessage(message);
+            should("complain if it receives a message because it is not started", () -> {
+                assertThrows(() -> actor.onMessage(new Message()));
+            });
+
+            when("started", () -> {
+                actor.onStart(new SpyChannel<>(), new SpyContext());
 
                 should("remember it", () -> {
-                    assertThat(actor.getReceivedMessages()).containsExactly(message);
+                    assertThat(actor.isStarted()).isTrue();
+                });
+
+                should("complain if started again", () -> {
+                    assertThrows(() -> actor.onStart(new SpyChannel<>(), new SpyContext()));
+                });
+
+                and("it receives a message", () -> {
+                    final Message message = new Message();
+                    actor.onMessage(message);
+
+                    should("remember it", () -> {
+                        assertThat(actor.getReceivedMessages()).containsExactly(message);
+                    });
                 });
             });
         });

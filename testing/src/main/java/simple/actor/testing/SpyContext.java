@@ -50,7 +50,7 @@ public final class SpyContext implements Context {
         synchronized (mLock) {
             mRegistered.add(actor);
         }
-        return new SameThreadDeliverer<>(actor);
+        return new SameThreadDeliverer<>(actor, this);
     }
 
     /** Returns all registered {@link Actor Actors}. */

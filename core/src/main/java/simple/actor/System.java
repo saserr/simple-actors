@@ -18,7 +18,10 @@ package simple.actor;
 
 import net.jcip.annotations.GuardedBy;
 
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.concurrent.Executor;
 
 import static simple.actor.Checks.checkNotNull;
 
@@ -68,6 +71,10 @@ public final class System implements Context {
     /**
      * {@inheritDoc}
      *
+     * <p>If system is {@link #resume running}, the {@link Actor} will be asynchronously {@link
+     * Actor#onStart started}. If system is {@link #pause paused}, the {@code Actor} will be started
+     * once the system is {@link #resume resumed}.
+     *
      * @throws IllegalStateException if system is {@link #stop stopped}.
      */
     @Override
@@ -86,6 +93,7 @@ public final class System implements Context {
             node.set(channel);
         }
 
+        channel.execute(() -> actor.onStart(channel, this));
         return channel;
     }
 
@@ -166,7 +174,7 @@ public final class System implements Context {
      *
      * @param <M> the type of sent messages.
      */
-    private static final class ActorChannel<M> implements Channel<M> {
+    private static final class ActorChannel<M> implements Channel<M>, Executor {
 
         private final Actor<M> mActor;
         private final Channel<Runnable> mChannel;
@@ -220,6 +228,17 @@ public final class System implements Context {
         @Override
         public void stop() {
             mMailbox.stop();
+        }
+
+        /**
+         * Executes the given {@link Runnable task} using the {@link Runner#create runnable
+         * channel}.
+         *
+         * @param command the task.
+         */
+        @Override
+        public void execute(@NotNull final Runnable command) {
+            mMailbox.send(command);
         }
 
         /**

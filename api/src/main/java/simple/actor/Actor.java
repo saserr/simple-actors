@@ -26,4 +26,13 @@ public abstract class Actor<M> {
 
     /** Receive and process the given message. This method must be implemented by actors. */
     protected abstract void onMessage(M m);
+
+    /**
+     * Callback for when actor is started. Actor will be asynchronously started when registered to a
+     * group.
+     *
+     * @param self    the {@link Channel} for actor to send messages to itself.
+     * @param context the view of actor's group.
+     */
+    protected void onStart(final Channel<M> self, final Context context) {}
 }

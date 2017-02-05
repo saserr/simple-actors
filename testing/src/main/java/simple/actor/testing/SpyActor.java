@@ -24,6 +24,8 @@ import java.util.List;
 import java.util.Queue;
 
 import simple.actor.Actor;
+import simple.actor.Channel;
+import simple.actor.Context;
 
 /**
  * An {@link Actor} that remembers all received messages. This {@code Actor} should only be used for
@@ -38,11 +40,36 @@ public final class SpyActor<M> extends Actor<M> {
     @GuardedBy("mLock")
     private final Queue<M> mReceived = new ArrayDeque<>();
 
-    /** Remembers the received message. */
+    @GuardedBy("mLock")
+    private boolean mStarted = false;
+
+    /**
+     * Remembers the received message.
+     *
+     * @throws IllegalStateException if message has been received before actor has been started.
+     */
     @Override
     protected void onMessage(final M message) {
         synchronized (mLock) {
+            if (!mStarted) {
+                throw new IllegalStateException("message received before actor has been started");
+            }
             mReceived.add(message);
+        }
+    }
+
+    /**
+     * Remembers that actor has been started.
+     *
+     * @throws IllegalStateException if actor is started more than once.
+     */
+    @Override
+    protected void onStart(final Channel<M> self, final Context context) {
+        synchronized (mLock) {
+            if (mStarted) {
+                throw new IllegalStateException("actor started multiple times");
+            }
+            mStarted = true;
         }
     }
 
@@ -50,6 +77,13 @@ public final class SpyActor<M> extends Actor<M> {
     public List<M> getReceivedMessages() {
         synchronized (mLock) {
             return new ArrayList<>(mReceived);
+        }
+    }
+
+    /** Returns {@code true} if actor has been started. */
+    public boolean isStarted() {
+        synchronized (mLock) {
+            return mStarted;
         }
     }
 }
