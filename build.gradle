@@ -84,3 +84,17 @@ allprojects {
         }
     }
 }
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}
+
+final def assembled = [':api', ':core']
+task assemble(type: Jar, dependsOn: assembled.collect({ "${it}:compileJava" })) {
+    doFirst {
+        destinationDir = rootProject.buildDir
+        baseName = 'simple-actors'
+        version = project.versionName
+        from files(assembled.collect { project(it).sourceSets.main.output })
+    }
+}

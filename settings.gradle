@@ -1,1 +1,1 @@
-include ':api', ':testing'
+include ':api', ':core', ':testing'
